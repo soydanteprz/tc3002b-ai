@@ -1,458 +1,315 @@
 #!/usr/bin/env python3
 """
-Corrección específica para ConPlag con estructura version2/sub1_sub2/
+Convierte IR-Plag a formato compacto y consistente
+Formato: c01_orig_np01/, c01_orig_L1v01/, etc.
+Cada carpeta contiene exactamente 2 archivos Java
 """
 
 import shutil
 from pathlib import Path
 import pandas as pd
-import itertools
-import json
 
-def analyze_conplag_structure(conplag_path: str):
+def convert_ir_plag_compact(ir_plag_path: str, output_path: str):
     """
-    Analiza la estructura real de ConPlag para confirmar formato
-    """
+    Convierte IR-Plag a formato compacto con nombres claros
 
-    conplag_path = Path(conplag_path)
-    print(f"🔍 Analizando estructura de ConPlag...")
-
-    # Verificar estructura general
-    versions_dir = conplag_path / "versions"
-    if not versions_dir.exists():
-        print(f"❌ No se encontró directorio versions/ en {conplag_path}")
-        return False
-
-    # Analizar versiones disponibles
-    version_dirs = [d for d in versions_dir.iterdir() if d.is_dir()]
-    print(f"📂 Directorios en versions/: {[d.name for d in version_dirs]}")
-
-    # Analizar version2 específicamente
-    version2_dir = versions_dir / "version_2"
-    if not version2_dir.exists():
-        print(f"❌ No se encontró directorio version2/")
-        return False
-
-    # Analizar contenido de version2
-    pair_dirs = [d for d in version2_dir.iterdir() if d.is_dir()]
-    print(f"📁 Directorios en version2/: {len(pair_dirs)}")
-
-    if not pair_dirs:
-        print(f"❌ No hay directorios en version2/")
-        return False
-
-    # Analizar estructura de pares
-    print(f"\n📊 Analizando estructura de pares (muestra de 5):")
-
-    valid_pairs = 0
-    for i, pair_dir in enumerate(sorted(pair_dirs)[:5]):
-        print(f"  📁 {pair_dir.name}/")
-
-        # Verificar formato sub1_sub2
-        if '_' not in pair_dir.name:
-            print(f"    ❌ Formato incorrecto (esperado: sub1_sub2)")
-            continue
-
-        try:
-            sub1_id, sub2_id = pair_dir.name.split('_', 1)
-            print(f"    🔍 sub1: {sub1_id}, sub2: {sub2_id}")
-        except:
-            print(f"    ❌ Error al dividir nombre del directorio")
-            continue
-
-        # Verificar archivos Java
-        java_files = list(pair_dir.glob("*.java"))
-        print(f"    📄 Archivos Java: {len(java_files)}")
-
-        expected_files = [f"{sub1_id}.java", f"{sub2_id}.java"]
-        found_files = [f.name for f in java_files]
-
-        for expected in expected_files:
-            if expected in found_files:
-                print(f"      ✅ {expected}")
-            else:
-                print(f"      ❌ {expected} (faltante)")
-
-        if all(ef in found_files for ef in expected_files):
-            valid_pairs += 1
-
-    print(f"\n📊 Resumen: {valid_pairs}/5 pares válidos en muestra")
-
-    if valid_pairs > 0:
-        print(f"✅ Estructura ConPlag confirmada")
-        return True
-    else:
-        print(f"❌ Estructura ConPlag no válida")
-        return False
-
-def build_conplag_index(conplag_path: str):
-    """
-    Construye índice de archivos ConPlag con estructura corregida
+    Formato de salida:
+    - c01_orig_np01/     # caso 1, original vs no-plagio versión 1
+    - c01_orig_L1v01/    # caso 1, original vs nivel 1 versión 1
+    - c02_orig_L6v05/    # caso 2, original vs nivel 6 versión 5
     """
 
-    conplag_path = Path(conplag_path)
-    print(f"🔍 Construyendo índice ConPlag...")
+    ir_plag_path = Path(ir_plag_path)
+    output_path = Path(output_path)
 
-    java_files_index = {}
+    # Crear directorio de salida
+    output_path.mkdir(parents=True, exist_ok=True)
 
-    # Buscar en version2 con estructura sub1_sub2
-    version2_dir = conplag_path / "versions" / "version2"
+    print("🔄 Convirtiendo IR-Plag a formato compacto...")
+    print(f"📂 Entrada: {ir_plag_path}")
+    print(f"📁 Salida: {output_path}")
 
-    if version2_dir.exists():
-        for pair_dir in version2_dir.iterdir():
-            if pair_dir.is_dir() and '_' in pair_dir.name:
-                try:
-                    sub1_id, sub2_id = pair_dir.name.split('_', 1)
+    # Buscar casos
+    case_dirs = sorted([d for d in ir_plag_path.glob("case-*") if d.is_dir()])
+    if not case_dirs:
+        case_dirs = sorted([d for d in ir_plag_path.glob("Case-*") if d.is_dir()])
 
-                    # Buscar archivos específicos
-                    sub1_file = pair_dir / f"{sub1_id}.java"
-                    sub2_file = pair_dir / f"{sub2_id}.java"
+    if not case_dirs:
+        print("❌ No se encontraron casos en IR-Plag")
+        return []
 
-                    if sub1_file.exists():
-                        java_files_index[sub1_id] = sub1_file
-                    if sub2_file.exists():
-                        java_files_index[sub2_id] = sub2_file
+    print(f"📁 Encontrados {len(case_dirs)} casos")
 
-                except Exception as e:
-                    print(f"    ⚠️ Error procesando {pair_dir.name}: {e}")
+    pairs_metadata = []
+    total_pairs = 0
 
-    print(f"✅ Índice construido: {len(java_files_index)} archivos")
-    return java_files_index
-
-def verify_labels_connection(conplag_path: str, java_files_index: dict):
-    """
-    Verifica conexión entre labels.csv y archivos indexados
-    """
-
-    conplag_path = Path(conplag_path)
-    labels_file = conplag_path / "versions" / "labels.csv"
-
-    if not labels_file.exists():
-        print(f"❌ No se encontró labels.csv")
-        return False
-
-    labels_df = pd.read_csv(labels_file)
-    print(f"📊 Verificando {len(labels_df)} pares de labels.csv...")
-
-    found_pairs = 0
-    missing_files = []
-
-    # Verificar muestra de 20 pares
-    sample_df = labels_df.head(20)
-
-    for _, row in sample_df.iterrows():
-        sub1_id = row['sub1']
-        sub2_id = row['sub2']
-
-        sub1_found = sub1_id in java_files_index
-        sub2_found = sub2_id in java_files_index
-
-        if sub1_found and sub2_found:
-            found_pairs += 1
-        else:
-            if not sub1_found:
-                missing_files.append(sub1_id)
-            if not sub2_found:
-                missing_files.append(sub2_id)
-
-    print(f"✅ {found_pairs}/{len(sample_df)} pares verificados correctamente")
-
-    if missing_files:
-        unique_missing = list(set(missing_files))
-        print(f"⚠️ IDs no encontrados: {unique_missing[:5]}")
-        if len(unique_missing) > 5:
-            print(f"   ... y {len(unique_missing) - 5} más")
-
-    return found_pairs > len(sample_df) * 0.8  # 80% éxito mínimo
-
-def rebuild_conplag_cases(conplag_path: str, unified_dataset_path: str):
-    """
-    Reconstruye casos de ConPlag con estructura corregida
-    """
-
-    conplag_path = Path(conplag_path)
-    unified_dataset_path = Path(unified_dataset_path)
-
-    print(f"🔄 Reconstruyendo casos ConPlag...")
-
-    # Construir índice corregido
-    java_files_index = build_conplag_index(conplag_path)
-
-    if len(java_files_index) == 0:
-        print(f"❌ No se pudieron indexar archivos ConPlag")
-        return False
-
-    # Verificar conexión con labels
-    if not verify_labels_connection(conplag_path, java_files_index):
-        print(f"❌ La verificación de labels falló")
-        return False
-
-    # Cargar labels
-    labels_file = conplag_path / "versions" / "labels.csv"
-    labels_df = pd.read_csv(labels_file)
-
-    # Agrupar por problema
-    problems = labels_df['problem'].unique()
-    print(f"📋 Reconstruyendo {len(problems)} problemas...")
-
-    # Eliminar casos ConPlag existentes
-    contest_cases = [d for d in unified_dataset_path.glob("Contest-*") if d.is_dir()]
-    for case_dir in contest_cases:
-        print(f"🗑️ Eliminando {case_dir.name} existente...")
-        shutil.rmtree(case_dir)
-
-    # Reconstruir casos
-    total_files_copied = 0
-    rebuilt_cases = {}
-
-    for case_num, problem_id in enumerate(sorted(problems), 1):
-        case_name = f"Contest-{case_num:02d}"
-        case_dir = unified_dataset_path / case_name
-        case_dir.mkdir(exist_ok=True)
-
-        print(f"📁 Creando {case_name} (Problema {problem_id})...")
-
-        # Crear estructura
-        original_dir = case_dir / "codigo_original"
-        no_plagio_dir = case_dir / "no_plagio"
-        plagio_dir = case_dir / "plagio"
-
-        original_dir.mkdir(exist_ok=True)
-        no_plagio_dir.mkdir(exist_ok=True)
-        plagio_dir.mkdir(exist_ok=True)
-        (plagio_dir / "contest_level").mkdir(exist_ok=True)
-
-        # Filtrar pares del problema
-        problem_pairs = labels_df[labels_df['problem'] == problem_id]
-
-        file_counter = 1
-        plagio_version = 1
-        no_plagio_version = 1
-        files_copied_this_case = 0
-
-        for _, pair in problem_pairs.iterrows():
-            sub1_id = pair['sub1']
-            sub2_id = pair['sub2']
-            verdict = pair['verdict']
-
-            # Buscar archivos en índice
-            if sub1_id in java_files_index and sub2_id in java_files_index:
-                file1_path = java_files_index[sub1_id]
-                file2_path = java_files_index[sub2_id]
-
-                try:
-                    if verdict == 1:  # Plagiado
-                        # Original
-                        dest1 = original_dir / f"original_{file_counter}.java"
-                        shutil.copy2(file1_path, dest1)
-
-                        # Plagio
-                        version_dir = plagio_dir / "contest_level" / f"version_{plagio_version:02d}"
-                        version_dir.mkdir(exist_ok=True)
-                        dest2 = version_dir / f"plagiarized_{file_counter}.java"
-                        shutil.copy2(file2_path, dest2)
-
-                        plagio_version += 1
-                        files_copied_this_case += 2
-
-                    else:  # No plagiado
-                        # Ambos como independientes
-                        version_dir1 = no_plagio_dir / f"version_{no_plagio_version:02d}"
-                        version_dir1.mkdir(exist_ok=True)
-                        dest1 = version_dir1 / f"independent_{file_counter}a.java"
-                        shutil.copy2(file1_path, dest1)
-                        no_plagio_version += 1
-
-                        version_dir2 = no_plagio_dir / f"version_{no_plagio_version:02d}"
-                        version_dir2.mkdir(exist_ok=True)
-                        dest2 = version_dir2 / f"independent_{file_counter}b.java"
-                        shutil.copy2(file2_path, dest2)
-                        no_plagio_version += 1
-
-                        files_copied_this_case += 2
-
-                    file_counter += 1
-
-                except Exception as e:
-                    print(f"    ⚠️ Error copiando {sub1_id}-{sub2_id}: {e}")
-
-        total_files_copied += files_copied_this_case
-
-        # Registrar caso
-        rebuilt_cases[case_name] = {
-            'problem_id': problem_id,
-            'pairs_processed': len(problem_pairs),
-            'files_copied': files_copied_this_case,
-            'original_files': len(list(original_dir.glob("*.java"))),
-            'no_plagio_versions': len(list(no_plagio_dir.glob("version_*"))),
-            'plagio_levels': 1
-        }
-
-        print(f"    ✅ {files_copied_this_case} archivos copiados")
-
-    print(f"✅ Reconstrucción ConPlag completada!")
-    print(f"📊 {len(rebuilt_cases)} casos reconstruidos")
-    print(f"📄 {total_files_copied} archivos copiados")
-
-    return rebuilt_cases
-
-def regenerate_unified_pairs(unified_dataset_path: str):
-    """
-    Regenera todos los pares del dataset unificado
-    """
-
-    unified_dataset_path = Path(unified_dataset_path)
-    print(f"🔄 Regenerando pares del dataset unificado...")
-
-    all_pairs = []
-    pair_id = 1
-
-    # Procesar todos los casos (IR-Plag + ConPlag reconstruido)
-    all_cases = sorted([d for d in unified_dataset_path.glob("*")
-                        if d.is_dir() and (d.name.startswith(("case-", "Contest-")))])
-
-    for case_dir in all_cases:
+    for case_dir in case_dirs:
         case_name = case_dir.name
-        source = "ir_plag" if case_name.startswith("case-") else "conplag"
+        case_number = int(case_name.split('-')[1])  # case-1 -> 1
+        case_id = f"c{case_number:02d}"  # c01, c02, etc.
 
-        print(f"  🔄 Procesando {case_name}...")
+        print(f"\n📂 Procesando {case_name} → {case_id}")
 
-        # Obtener archivos
-        original_files = list((case_dir / "codigo_original").glob("*.java"))
-        no_plagio_files = []
-        plagio_files = []
+        # 1. OBTENER ARCHIVO ORIGINAL
+        original_dir = case_dir / "Original"
+        if not original_dir.exists():
+            print(f"    ❌ No se encontró directorio Original")
+            continue
 
-        # No plagio
-        no_plagio_dir = case_dir / "no_plagio"
-        for version_dir in no_plagio_dir.glob("version_*"):
-            no_plagio_files.extend(list(version_dir.glob("*.java")))
+        original_files = list(original_dir.glob("*.java"))
+        if not original_files:
+            print(f"    ❌ No se encontraron archivos Java originales")
+            continue
 
-        # Plagio
-        plagio_dir = case_dir / "plagio"
-        for level_dir in plagio_dir.iterdir():
-            if level_dir.is_dir():
-                level_name = level_dir.name
-                for version_dir in level_dir.glob("version_*"):
-                    for java_file in version_dir.glob("*.java"):
-                        plagio_files.append((java_file, level_name))
+        original_file = original_files[0]
+        print(f"    📄 Original: {original_file.name}")
 
-        # Generar pares no plagiados
-        for orig_file in original_files:
-            for no_plag_file in no_plagio_files:
-                all_pairs.append({
-                    'pair_id': f"pair_{pair_id:06d}",
-                    'case': case_name,
-                    'file1': str(orig_file.relative_to(unified_dataset_path)),
-                    'file2': str(no_plag_file.relative_to(unified_dataset_path)),
-                    'label': 0,
-                    'plagiarism_level': 'none',
-                    'source_dataset': source,
-                    'comparison_type': 'original_vs_independent'
-                })
-                pair_id += 1
+        # 2. PROCESAR NO-PLAGIADOS
+        non_plag_dir = case_dir / "non-plagiarized"
+        if non_plag_dir.exists():
+            print(f"    🔍 Procesando no-plagiados...")
 
-        for file1, file2 in itertools.combinations(no_plagio_files, 2):
-            all_pairs.append({
-                'pair_id': f"pair_{pair_id:06d}",
-                'case': case_name,
-                'file1': str(file1.relative_to(unified_dataset_path)),
-                'file2': str(file2.relative_to(unified_dataset_path)),
-                'label': 0,
-                'plagiarism_level': 'none',
-                'source_dataset': source,
-                'comparison_type': 'independent_vs_independent'
-            })
-            pair_id += 1
+            # Buscar directorios numerados y ordenarlos
+            numeric_dirs = sorted([
+                d for d in non_plag_dir.iterdir()
+                if d.is_dir() and d.name.isdigit()
+            ], key=lambda x: int(x.name))
 
-        # Generar pares plagiados
-        for orig_file in original_files:
-            for plag_file, level in plagio_files:
-                all_pairs.append({
-                    'pair_id': f"pair_{pair_id:06d}",
-                    'case': case_name,
-                    'file1': str(orig_file.relative_to(unified_dataset_path)),
-                    'file2': str(plag_file.relative_to(unified_dataset_path)),
-                    'label': 1,
-                    'plagiarism_level': level,
-                    'source_dataset': source,
-                    'comparison_type': 'original_vs_plagiarized'
-                })
-                pair_id += 1
+            np_count = 0
+            for version_dir in numeric_dirs:
+                java_files = list(version_dir.glob("*.java"))
+                if java_files:
+                    np_count += 1
 
-        # Plagiado vs plagiado
-        files_by_level = {}
-        for plag_file, level in plagio_files:
-            if level not in files_by_level:
-                files_by_level[level] = []
-            files_by_level[level].append(plag_file)
+                    # Crear nombre de carpeta compacto
+                    folder_name = f"{case_id}_orig_np{np_count:02d}"
+                    pair_folder = output_path / folder_name
+                    pair_folder.mkdir(exist_ok=True)
 
-        for level, level_files in files_by_level.items():
-            for file1, file2 in itertools.combinations(level_files, 2):
-                all_pairs.append({
-                    'pair_id': f"pair_{pair_id:06d}",
-                    'case': case_name,
-                    'file1': str(file1.relative_to(unified_dataset_path)),
-                    'file2': str(file2.relative_to(unified_dataset_path)),
-                    'label': 1,
-                    'plagiarism_level': level,
-                    'source_dataset': source,
-                    'comparison_type': 'plagiarized_vs_plagiarized'
-                })
-                pair_id += 1
+                    # Copiar archivos con nombres estándar
+                    orig_dest = pair_folder / "original.java"
+                    comp_dest = pair_folder / "compared.java"
 
-    # Guardar pares
-    pairs_df = pd.DataFrame(all_pairs)
-    pairs_df.to_csv(unified_dataset_path / "all_pairs.csv", index=False)
+                    shutil.copy2(original_file, orig_dest)
+                    shutil.copy2(java_files[0], comp_dest)
 
-    # Crear splits
-    pairs_shuffled = pairs_df.sample(frac=1, random_state=42).reset_index(drop=True)
-    train_size = int(0.8 * len(pairs_shuffled))
+                    # Registrar metadata
+                    pairs_metadata.append({
+                        'folder_name': folder_name,
+                        'case_num': case_number,
+                        'case_orig': case_name,
+                        'file1': 'original.java',
+                        'file2': 'compared.java',
+                        'label': 0,  # No plagiado
+                        'plagiarism_level': 'none',
+                        'comparison_type': 'original_vs_nonplagiarized',
+                        'level_detail': f'np{np_count:02d}'
+                    })
+                    total_pairs += 1
 
-    train_df = pairs_shuffled[:train_size]
-    test_df = pairs_shuffled[train_size:]
+            print(f"      ✅ {np_count} pares no-plagiados creados")
 
-    train_df.to_csv(unified_dataset_path / "train_pairs.csv", index=False)
-    test_df.to_csv(unified_dataset_path / "test_pairs.csv", index=False)
+        # 3. PROCESAR PLAGIADOS POR NIVELES
+        plag_dir = case_dir / "plagiarized"
+        if plag_dir.exists():
+            print(f"    🔍 Procesando plagiados...")
+
+            level_totals = {}
+
+            # Procesar cada nivel L1, L2, L3, L4, L5, L6
+            for level_name in ['L1', 'L2', 'L3', 'L4', 'L5', 'L6']:
+                level_dir = plag_dir / level_name
+                if level_dir.exists():
+                    level_num = level_name  # Mantener L1, L2, etc.
+
+                    # Buscar directorios numerados y ordenarlos
+                    numeric_dirs = sorted([
+                        d for d in level_dir.iterdir()
+                        if d.is_dir() and d.name.isdigit()
+                    ], key=lambda x: int(x.name))
+
+                    version_count = 0
+                    for version_dir in numeric_dirs:
+                        java_files = list(version_dir.glob("*.java"))
+                        if java_files:
+                            version_count += 1
+
+                            # Crear nombre de carpeta compacto
+                            folder_name = f"{case_id}_orig_{level_num}v{version_count:02d}"
+                            pair_folder = output_path / folder_name
+                            pair_folder.mkdir(exist_ok=True)
+
+                            # Copiar archivos con nombres estándar
+                            orig_dest = pair_folder / "original.java"
+                            comp_dest = pair_folder / "compared.java"
+
+                            shutil.copy2(original_file, orig_dest)
+                            shutil.copy2(java_files[0], comp_dest)
+
+                            # Registrar metadata
+                            pairs_metadata.append({
+                                'folder_name': folder_name,
+                                'case_num': case_number,
+                                'case_orig': case_name,
+                                'file1': 'original.java',
+                                'file2': 'compared.java',
+                                'label': 1,  # Plagiado
+                                'plagiarism_level': f'level_{level_name[1:]}',  # level_1, level_2, etc.
+                                'comparison_type': f'original_vs_{level_name.lower()}',
+                                'level_detail': f'{level_num}v{version_count:02d}'
+                            })
+                            total_pairs += 1
+
+                    if version_count > 0:
+                        level_totals[level_name] = version_count
+                        print(f"      ✅ {level_name}: {version_count} pares plagiados")
+
+    print(f"\n📊 CONVERSIÓN COMPLETADA:")
+    print(f"✅ {total_pairs} pares creados en formato compacto")
+    print(f"📁 Ubicación: {output_path}")
+
+    return pairs_metadata
+
+def create_ir_plag_csv(pairs_metadata: list, output_path: Path):
+    """
+    Crea CSV con metadata de todos los pares de IR-Plag
+    """
+
+    print("\n📝 Creando CSV de metadata...")
+
+    # Crear DataFrame
+    df = pd.DataFrame(pairs_metadata)
+
+    # Agregar información adicional
+    df['pair_id'] = [f"ir_{i+1:04d}" for i in range(len(df))]
+    df['source_dataset'] = 'ir_plag'
+
+    # Reordenar columnas
+    columns_order = [
+        'pair_id', 'folder_name', 'case_num', 'case_orig',
+        'file1', 'file2', 'label', 'plagiarism_level',
+        'comparison_type', 'level_detail', 'source_dataset'
+    ]
+    df = df[columns_order]
+
+    # Guardar CSV
+    csv_file = output_path / "ir_plag_pairs.csv"
+    df.to_csv(csv_file, index=False)
 
     # Estadísticas
-    plagiarized = len(pairs_df[pairs_df['label'] == 1])
-    print(f"✅ Dataset regenerado: {len(pairs_df)} pares totales")
-    print(f"  - Train: {len(train_df)}, Test: {len(test_df)}")
-    print(f"  - Plagiados: {plagiarized} ({plagiarized/len(pairs_df)*100:.1f}%)")
+    total_pairs = len(df)
+    plagiarized = len(df[df['label'] == 1])
+    non_plagiarized = len(df[df['label'] == 0])
 
-    return pairs_df
+    print(f"✅ CSV creado: {csv_file}")
+    print(f"📊 Estadísticas:")
+    print(f"   Total pares: {total_pairs}")
+    print(f"   Plagiados: {plagiarized}")
+    print(f"   No plagiados: {non_plagiarized}")
+    print(f"   Balance: {plagiarized/total_pairs*100:.1f}% plagiados")
+
+    # Mostrar distribución por nivel
+    print(f"\n📈 Distribución por nivel:")
+    level_counts = df[df['label'] == 1]['plagiarism_level'].value_counts().sort_index()
+    for level, count in level_counts.items():
+        print(f"   {level}: {count} pares")
+
+    # Mostrar casos procesados
+    cases_processed = df['case_num'].nunique()
+    print(f"\n📁 Casos procesados: {cases_processed}")
+    for case_num in sorted(df['case_num'].unique()):
+        case_pairs = len(df[df['case_num'] == case_num])
+        case_plag = len(df[(df['case_num'] == case_num) & (df['label'] == 1)])
+        print(f"   Caso {case_num}: {case_pairs} pares ({case_plag} plagiados)")
+
+    return df
+
+def verify_conversion(output_path: Path):
+    """
+    Verifica que la conversión se hizo correctamente
+    """
+
+    print(f"\n🔍 Verificando conversión...")
+
+    # Contar carpetas creadas
+    pair_folders = [d for d in output_path.iterdir() if d.is_dir()]
+    print(f"📁 Carpetas creadas: {len(pair_folders)}")
+
+    # Verificar estructura de algunas carpetas
+    verified_folders = 0
+    errors = []
+
+    for folder in pair_folders[:10]:  # Verificar primeras 10
+        java_files = list(folder.glob("*.java"))
+
+        if len(java_files) == 2:
+            expected_files = ['original.java', 'compared.java']
+            actual_files = [f.name for f in java_files]
+
+            if all(ef in actual_files for ef in expected_files):
+                verified_folders += 1
+            else:
+                errors.append(f"{folder.name}: archivos {actual_files} (esperados: {expected_files})")
+        else:
+            errors.append(f"{folder.name}: {len(java_files)} archivos (esperados: 2)")
+
+    print(f"✅ Carpetas verificadas correctamente: {verified_folders}/10")
+
+    if errors:
+        print(f"⚠️ Errores encontrados:")
+        for error in errors[:5]:
+            print(f"   - {error}")
+
+    # Mostrar ejemplos de nombres de carpetas
+    print(f"\n📝 Ejemplos de nombres de carpetas:")
+    sample_folders = sorted([d.name for d in pair_folders])
+
+    # Mostrar algunos ejemplos organizados
+    np_examples = [f for f in sample_folders if '_np' in f][:3]
+    l1_examples = [f for f in sample_folders if '_L1v' in f][:3]
+    l6_examples = [f for f in sample_folders if '_L6v' in f][:3]
+
+    if np_examples:
+        print(f"   No-plagio: {', '.join(np_examples)}")
+    if l1_examples:
+        print(f"   Nivel 1: {', '.join(l1_examples)}")
+    if l6_examples:
+        print(f"   Nivel 6: {', '.join(l6_examples)}")
 
 def main():
     # Configurar rutas
-    conplag_path = "data/conplag"  # Ajustar
-    unified_dataset_path = "data/final_dataset"  # Ajustar
+    ir_plag_input = "data/IR-Plag-Dataset"
+    output_dir = "data/ir_plag_compact"
 
-    print("🔧 CORRECCIÓN ESPECÍFICA DE CONPLAG")
-    print("=" * 40)
+    print("🚀 CONVERTIDOR IR-PLAG A FORMATO COMPACTO")
+    print("=" * 45)
+    print(f"📂 Entrada: {ir_plag_input}")
+    print(f"📁 Salida: {output_dir}")
+    print()
+    print("🏷️ Formato de nombres:")
+    print("   c01_orig_np01/     # caso 1, original vs no-plagio 1")
+    print("   c01_orig_L1v01/    # caso 1, original vs nivel 1 versión 1")
+    print("   c02_orig_L6v05/    # caso 2, original vs nivel 6 versión 5")
+    print()
 
-    # 1. Analizar estructura
-    if not analyze_conplag_structure(conplag_path):
-        print("❌ La estructura de ConPlag no es válida")
-        return False
+    # 1. Convertir IR-Plag
+    pairs_metadata = convert_ir_plag_compact(ir_plag_input, output_dir)
 
-    # 2. Reconstruir casos ConPlag
-    rebuilt_cases = rebuild_conplag_cases(conplag_path, unified_dataset_path)
+    if not pairs_metadata:
+        print("❌ No se pudieron procesar los datos de IR-Plag")
+        return
 
-    if not rebuilt_cases:
-        print("❌ La reconstrucción de ConPlag falló")
-        return False
+    # 2. Crear CSV
+    df = create_ir_plag_csv(pairs_metadata, Path(output_dir))
 
-    # 3. Regenerar todos los pares
-    pairs_df = regenerate_unified_pairs(unified_dataset_path)
+    # 3. Verificar conversión
+    verify_conversion(Path(output_dir))
 
-    print(f"\n🎉 CORRECCIÓN CONPLAG COMPLETADA!")
-    print(f"📊 Dataset final optimizado")
-
-    return True
+    print(f"\n🎉 ¡CONVERSIÓN COMPLETADA!")
+    print(f"📁 {len(pairs_metadata)} pares creados en formato compacto")
+    print(f"📄 CSV generado con metadata completa")
+    print(f"✅ Cada carpeta contiene exactamente 2 archivos Java")
+    print(f"📂 Revisa el resultado en: {output_dir}")
 
 if __name__ == "__main__":
-    success = main()
-    if success:
-        print("✅ Ejecuta el analizador para ver las estadísticas actualizadas")
-    else:
-        print("❌ La corrección falló, revisa los logs")
+    main()
