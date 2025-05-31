@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+"""
+Script principal actualizado para construir el dataset unificado
+Incorpora los ajustes que funcionaron en la prueba rápida
+"""
+
 import os
 import pandas as pd
 import shutil
@@ -25,11 +31,38 @@ class UnifiedDatasetBuilder:
         print("  🔍 Indexando archivos Java de ConPlag...")
         self.java_files_index = {}
 
-        for java_file in self.conplag_path.rglob("*.java"):
-            file_id = java_file.stem  # Nombre sin extensión
-            self.java_files_index[file_id] = java_file
+        # Buscar en la estructura version2 con directorios de pares
+        version2_dir = self.conplag_path / "versions" / "version_2"
+        if version2_dir.exists():
+            print(f"    📂 Explorando version_2/...")
+            pair_dirs = [d for d in version2_dir.iterdir() if d.is_dir()]
+            print(f"    📁 Encontrados {len(pair_dirs)} directorios de pares")
+
+            for pair_dir in pair_dirs:
+                if '_' in pair_dir.name:
+                    try:
+                        sub1_id, sub2_id = pair_dir.name.split('_', 1)
+
+                        # Buscar archivos específicos
+                        sub1_file = pair_dir / f"{sub1_id}.java"
+                        sub2_file = pair_dir / f"{sub2_id}.java"
+
+                        if sub1_file.exists():
+                            self.java_files_index[sub1_id] = sub1_file
+                        if sub2_file.exists():
+                            self.java_files_index[sub2_id] = sub2_file
+
+                    except Exception as e:
+                        print(f"      ⚠️ Error procesando {pair_dir.name}: {e}")
+        else:
+            print(f"    ❌ No se encontró directorio version2/")
 
         print(f"  ✅ Indexados {len(self.java_files_index)} archivos Java")
+        if len(self.java_files_index) > 0:
+            # Mostrar algunos ejemplos de IDs indexados
+            sample_ids = list(self.java_files_index.keys())[:5]
+            print(f"    💡 Ejemplos de IDs indexados: {sample_ids}")
+
         return len(self.java_files_index)
 
     def _find_conplag_file(self, submission_id: str) -> Path:
@@ -72,20 +105,33 @@ class UnifiedDatasetBuilder:
         print(f"  🔗 Verificando conexión labels -> archivos (muestra de {len(sample_df)})...")
 
         found_pairs = 0
+        missing_files = []
+
         for _, row in sample_df.iterrows():
-            file1 = self._find_conplag_file(row['sub1'])
-            file2 = self._find_conplag_file(row['sub2'])
+            sub1_id = row['sub1']
+            sub2_id = row['sub2']
+
+            file1 = self._find_conplag_file(sub1_id)
+            file2 = self._find_conplag_file(sub2_id)
 
             if file1 and file2 and file1.exists() and file2.exists():
                 found_pairs += 1
+            else:
+                if not file1 or not file1.exists():
+                    missing_files.append(sub1_id)
+                if not file2 or not file2.exists():
+                    missing_files.append(sub2_id)
 
         print(f"    ✅ {found_pairs}/{len(sample_df)} pares con archivos encontrados")
 
         if found_pairs == 0:
             print("    ❌ PROBLEMA: No se encontraron archivos para ningún par")
-            print("    💡 Revisa las rutas de ConPlag y la estructura de archivos")
+            print("    💡 Archivos faltantes de muestra:", missing_files[:5])
         elif found_pairs < len(sample_df):
             print(f"    ⚠️  {len(sample_df) - found_pairs} pares con archivos faltantes")
+            if missing_files:
+                unique_missing = list(set(missing_files))
+                print(f"    💡 IDs no encontrados: {unique_missing[:5]}")
 
     def process_ir_plag_cases(self):
         """Procesa los casos de IR-Plag manteniendo su estructura"""
@@ -161,22 +207,25 @@ class UnifiedDatasetBuilder:
 
             if source_non_plag.exists():
                 version_count = 1
-                for version_dir in source_non_plag.iterdir():
-                    if version_dir.is_dir():
-                        target_version_dir = no_plagio_dir / f"version_{version_count:02d}"
-                        target_version_dir.mkdir(exist_ok=True)
+                # Buscar directorios numerados (01, 02, 03, etc.)
+                numeric_dirs = sorted([d for d in source_non_plag.iterdir()
+                                       if d.is_dir() and d.name.isdigit()])
 
-                        java_files = list(version_dir.glob("*.java"))
-                        for java_file in java_files:
-                            shutil.copy2(java_file, target_version_dir / java_file.name)
-                            files_copied_this_case += 1
-                        version_count += 1
+                for version_dir in numeric_dirs:
+                    target_version_dir = no_plagio_dir / f"version_{version_count:02d}"
+                    target_version_dir.mkdir(exist_ok=True)
+
+                    java_files = list(version_dir.glob("*.java"))
+                    for java_file in java_files:
+                        shutil.copy2(java_file, target_version_dir / java_file.name)
+                        files_copied_this_case += 1
+                    version_count += 1
 
                 print(f"    ✅ {version_count-1} versiones no plagiadas")
             else:
                 print(f"    ⚠️ No se encontró directorio non-plagiarized en {case_name}")
 
-            # 3. PLAGIO (6 niveles de Faidhi & Robinson)
+            # 3. PLAGIO (6 niveles L1-L6 de Faidhi & Robinson)
             plagio_dir = output_case_dir / "plagio"
             plagio_dir.mkdir(exist_ok=True)
 
@@ -191,14 +240,23 @@ class UnifiedDatasetBuilder:
 
             levels_found = 0
             if source_plag.exists():
-                for level_dir in sorted(source_plag.glob("level_*")):
-                    level_name = level_dir.name  # level_1, level_2, etc.
-                    target_level_dir = plagio_dir / level_name
-                    target_level_dir.mkdir(exist_ok=True)
+                # Buscar niveles L1, L2, L3, L4, L5, L6
+                level_names = ['L1', 'L2', 'L3', 'L4', 'L5', 'L6']
 
-                    version_count = 1
-                    for version_dir in level_dir.iterdir():
-                        if version_dir.is_dir():
+                for level_name in level_names:
+                    level_dir = source_plag / level_name
+                    if level_dir.exists():
+                        # Convertir L1 -> level_1 para consistencia
+                        target_level_name = f"level_{level_name[1:]}"
+                        target_level_dir = plagio_dir / target_level_name
+                        target_level_dir.mkdir(exist_ok=True)
+
+                        version_count = 1
+                        # Buscar directorios numerados dentro del nivel
+                        numeric_dirs = sorted([d for d in level_dir.iterdir()
+                                               if d.is_dir() and d.name.isdigit()])
+
+                        for version_dir in numeric_dirs:
                             target_version_dir = target_level_dir / f"version_{version_count:02d}"
                             target_version_dir.mkdir(exist_ok=True)
 
@@ -208,7 +266,8 @@ class UnifiedDatasetBuilder:
                                 files_copied_this_case += 1
                             version_count += 1
 
-                    levels_found += 1
+                        levels_found += 1
+                        print(f"    ✅ {level_name} -> level_{level_name[1:]} ({version_count-1} versiones)")
 
                 print(f"    ✅ {levels_found} niveles de plagio procesados")
             else:
@@ -563,14 +622,14 @@ class UnifiedDatasetBuilder:
         print(f"📁 Ubicación: {self.output_path}")
 
         return stats
-        return stats
 
 # Uso
 if __name__ == "__main__":
     # ⚠️ AJUSTAR ESTAS RUTAS SEGÚN TU CONFIGURACIÓN ⚠️
     conplag_path = "data/conplag"
     ir_plag_path = "data/IR-Plag-Dataset"
-    output_path = "data/final_dataset"
+    output_path = "data/elbueno"
+
     print("🔧 Construyendo dataset unificado con configuración actualizada...")
     print(f"📂 ConPlag: {conplag_path}")
     print(f"📂 IR-Plag: {ir_plag_path}")
