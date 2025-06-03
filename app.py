@@ -1,8 +1,3 @@
-#!/usr/bin/env python
-"""
-Script principal optimizado para detección de plagio con salida limpia
-"""
-
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -10,6 +5,7 @@ from plagiarism_ast_detector import EnhancedPlagiarismDetector
 from plagiarism_analyzer import PlagiarismAnalyzer
 import sys
 import os
+
 
 def main():
     """Función principal con salida limpia"""
@@ -28,6 +24,12 @@ def main():
 
     # 1. Ejecutar detección (sin mensajes de progreso)
     detector = EnhancedPlagiarismDetector()
+    problematic_files = detector.find_problematic_files(BASE_PATH, CSV_PATH)
+
+    # To debug a specific file
+    if len(problematic_files) > 0:
+        print("\n🔬 Debugging first problematic file in detail:")
+        detector.debug_file_parsing(problematic_files[0][0])
     df_results = detector.process_dataset(BASE_PATH, CSV_PATH, OUTPUT_CSV, verbose=True)
 
     # 2. Análisis de métricas individuales

@@ -34,6 +34,12 @@ class ASTNormalizer:
 
     def normalize_code(self, code):
         """Normaliza el código reemplazando identificadores"""
+        if not code or len(code.strip()) == 0:
+            return code
+
+        # Pre-process code
+        code = code.replace('\r\n', '\n').replace('\t', '    ')
+
         try:
             self.reset_counters()
             tree = javalang.parse.parse(code)
@@ -45,10 +51,17 @@ class ASTNormalizer:
             normalized = self._replace_identifiers(code)
 
             return normalized
+        except javalang.parser.JavaSyntaxError as se:
+            # Extract meaningful error details
+            error_msg = str(se)
+            line_info = f"at line {se.at.line}" if hasattr(se, 'at') and hasattr(se.at, 'line') else ""
+            print(f"Error normalizando código: Syntax error {line_info} - {error_msg}")
+            return code
+        except javalang.tokenizer.LexerError as le:
+            print(f"Error normalizando código: Lexer error - {str(le)}")
+            return code
         except Exception as e:
-            # Solo mostrar error si es significativo
-            if "empty" not in str(e).lower():
-                print(f"Error normalizando código: {e}")
+            print(f"Error normalizando código: {str(e)}")
             return code
 
     def _collect_identifiers(self, tree):
@@ -112,43 +125,60 @@ class ASTStructureAnalyzer:
     @staticmethod
     def extract_ast_structure(code):
         """Extrae la secuencia de estructura del AST"""
+        if not code or len(code.strip()) == 0:
+            return []
+
+        # Pre-process code to handle potential syntax issues
+        code = code.replace('\r\n', '\n').replace('\t', '    ')
+
+        # Additional preprocessing to handle common problems
+        # Remove package declarations which might cause issues
+        code = re.sub(r'^package\s+[\w.]+;', '', code)
+
+        # Ensure class structure is present
+        if '{' not in code or '}' not in code:
+            if 'class' not in code.lower():
+                # Try to wrap code in a dummy class if it's just a fragment
+                code = "class DummyWrapper {\n" + code + "\n}"
+
         try:
+            # Try parsing with javalang
             tree = javalang.parse.parse(code)
             structure = []
 
-            # Recorrer el AST en profundidad
+            # Traverse AST
             for path, node in tree:
                 node_type = type(node).__name__
 
-                # Agregar información adicional según el tipo de nodo
+                # Add additional information based on node type
                 if isinstance(node, javalang.tree.MethodDeclaration):
-                    # Incluir número de parámetros
                     param_count = len(node.parameters) if node.parameters else 0
                     structure.append(f"{node_type}_{param_count}")
-
                 elif isinstance(node, javalang.tree.ForStatement):
                     structure.append(f"{node_type}_LOOP")
-
                 elif isinstance(node, javalang.tree.WhileStatement):
                     structure.append(f"{node_type}_LOOP")
-
                 elif isinstance(node, javalang.tree.IfStatement):
-                    # Verificar si tiene else
                     has_else = 1 if node.else_statement else 0
                     structure.append(f"{node_type}_{has_else}")
-
                 elif isinstance(node, javalang.tree.BinaryOperation):
                     structure.append(f"{node_type}_{node.operator}")
-
                 else:
                     structure.append(node_type)
 
             return structure
 
+        except javalang.parser.JavaSyntaxError as se:
+            # Extract meaningful error details
+            error_msg = str(se)
+            line_info = f"at line {se.at.line}" if hasattr(se, 'at') and hasattr(se.at, 'line') else ""
+            print(f"Error extrayendo estructura AST: Syntax error {line_info} - {error_msg}")
+            return []
+        except javalang.tokenizer.LexerError as le:
+            print(f"Error extrayendo estructura AST: Lexer error - {str(le)}")
+            return []
         except Exception as e:
-            # Solo mostrar error si es significativo
-            if "empty" not in str(e).lower() and "NoneType" not in str(e):
-                print(f"Error extrayendo estructura AST: {e}")
+            print(f"Error extrayendo estructura AST: {str(e)}")
             return []
 
     @staticmethod
@@ -173,6 +203,46 @@ class ASTStructureAnalyzer:
             pass
 
         return signatures
+
+    def debug_file_parsing(self, filepath):
+        """Helper method to debug parsing issues with specific files"""
+        print(f"\n📋 Debugging file: {filepath}")
+        try:
+            code = self.read_java_file(filepath)
+            print(f"File size: {len(code)} bytes")
+            print(f"Is empty: {len(code.strip()) == 0}")
+
+            # Check basic content
+            first_100_chars = code[:100].replace('\n', '\\n')
+            print(f"Content starts with: {first_100_chars}...")
+
+            # Try to parse
+            print("Attempting to parse with javalang...")
+            tree = javalang.parse.parse(code)
+            print("✅ Parsing successful!")
+
+            # Count nodes
+            node_count = 0
+            for _, _ in tree:
+                node_count += 1
+            print(f"AST contains {node_count} nodes")
+
+            return True
+        except Exception as e:
+            print(f"❌ Parsing failed: {e}")
+            if "at position" in str(e):
+                position = str(e).split("at position")[1].strip()
+                print(f"Error position: {position}")
+
+                # Show problematic code around the error position
+                try:
+                    position = int(position)
+                    start = max(0, position - 50)
+                    end = min(len(code), position + 50)
+                    print(f"Code around error position:\n```\n{code[start:end]}\n```")
+                except:
+                    pass
+            return False
 
     @staticmethod
     def calculate_lcs(seq1, seq2):
@@ -253,52 +323,101 @@ class EnhancedPlagiarismDetector:
 
     def calculate_similarity(self, file1_path, file2_path):
         """Calcula múltiples métricas de similitud"""
-        # Leer archivos
-        code1_raw = self.read_java_file(file1_path)
-        code2_raw = self.read_java_file(file2_path)
+        try:
+            code1_raw = self.read_java_file(file1_path)
+            code2_raw = self.read_java_file(file2_path)
 
-        # Limpiar código
-        code1_clean = self.clean_code(code1_raw)
-        code2_clean = self.clean_code(code2_raw)
+            # Limpiar código
+            code1_clean = self.clean_code(code1_raw)
+            code2_clean = self.clean_code(code2_raw)
 
-        # Normalizar con AST
-        code1_normalized = self.normalizer.normalize_code(code1_clean)
-        code2_normalized = self.normalizer.normalize_code(code2_clean)
+            # Normalizar con AST
+            code1_normalized = self.normalizer.normalize_code(code1_clean)
+            code2_normalized = self.normalizer.normalize_code(code2_clean)
 
-        # Tokenizar para TF-IDF
-        tokens1 = self.tokenize_code(code1_normalized)
-        tokens2 = self.tokenize_code(code2_normalized)
+            # Tokenizar para TF-IDF
+            tokens1 = self.tokenize_code(code1_normalized)
+            tokens2 = self.tokenize_code(code2_normalized)
 
-        results = {}
+            results = {}
 
-        # 1. TF-IDF con código normalizado
-        if tokens1 and tokens2:
-            vectorizer = TfidfVectorizer()
-            tfidf_matrix = vectorizer.fit_transform([tokens1, tokens2])
-            results['tfidf_normalized'] = cosine_similarity(tfidf_matrix[0], tfidf_matrix[1])[0][0]
-        else:
-            results['tfidf_normalized'] = 0.0
+            # 1. TF-IDF con código normalizado
+            if tokens1 and tokens2:
+                vectorizer = TfidfVectorizer()
+                tfidf_matrix = vectorizer.fit_transform([tokens1, tokens2])
+                results['tfidf_normalized'] = cosine_similarity(tfidf_matrix[0], tfidf_matrix[1])[0][0]
+            else:
+                results['tfidf_normalized'] = 0.0
 
-        # 2. Similitud estructural AST
-        results['ast_structure'] = self.structure_analyzer.structure_similarity(code1_clean, code2_clean)
+            # 2. Similitud estructural AST
+            results['ast_structure'] = self.structure_analyzer.structure_similarity(code1_clean, code2_clean)
 
-        # 3. Similitud de firmas de métodos
-        results['method_signatures'] = self.structure_analyzer.method_signature_similarity(code1_clean, code2_clean)
+            # 3. Similitud de firmas de métodos
+            results['method_signatures'] = self.structure_analyzer.method_signature_similarity(code1_clean, code2_clean)
 
-        # 4. Similitud de secuencia (sobre código normalizado)
-        results['sequence_normalized'] = SequenceMatcher(None, code1_normalized, code2_normalized).ratio()
+            # 4. Similitud de secuencia (sobre código normalizado)
+            results['sequence_normalized'] = SequenceMatcher(None, code1_normalized, code2_normalized).ratio()
 
-        # 5. Puntuación combinada (ponderada)
-        weights = {
-            'tfidf_normalized': 0.35,
-            'ast_structure': 0.30,
-            'method_signatures': 0.20,
-            'sequence_normalized': 0.15
-        }
+            # 5. Puntuación combinada (ponderada)
+            weights = {
+                'tfidf_normalized': 0.35,
+                'ast_structure': 0.30,
+                'method_signatures': 0.20,
+                'sequence_normalized': 0.15
+            }
 
-        results['combined_score'] = sum(results[metric] * weights[metric] for metric in weights)
+            results['combined_score'] = sum(results[metric] * weights[metric] for metric in weights)
+            return results
 
-        return results
+        except Exception as e:
+            print(f"Error calculando similitud entre {file1_path} y {file2_path}: {e}")
+            return {
+                'tfidf_normalized': 0.0,
+                'ast_structure': 0.0,
+                'method_signatures': 0.0,
+                'sequence_normalized': 0.0,
+                'combined_score': 0.0
+            }
+
+    def debug_file_parsing(self, filepath):
+        """Helper method to debug parsing issues with specific files"""
+        print(f"\n📋 Debugging file: {filepath}")
+        try:
+            code = self.read_java_file(filepath)
+            print(f"File size: {len(code)} bytes")
+            print(f"Is empty: {len(code.strip()) == 0}")
+
+            # Check basic content
+            first_100_chars = code[:100].replace('\n', '\\n')
+            print(f"Content starts with: {first_100_chars}...")
+
+            # Try to parse
+            print("Attempting to parse with javalang...")
+            tree = javalang.parse.parse(code)
+            print("✅ Parsing successful!")
+
+            # Count nodes
+            node_count = 0
+            for _, _ in tree:
+                node_count += 1
+            print(f"AST contains {node_count} nodes")
+
+            return True
+        except Exception as e:
+            print(f"❌ Parsing failed: {e}")
+            if "at position" in str(e):
+                position = str(e).split("at position")[1].strip()
+                print(f"Error position: {position}")
+
+                # Show problematic code around the error position
+                try:
+                    position = int(position)
+                    start = max(0, position - 50)
+                    end = min(len(code), position + 50)
+                    print(f"Code around error position:\n```\n{code[start:end]}\n```")
+                except:
+                    pass
+            return False
 
     def process_dataset(self, base_path, csv_path, output_csv='similarity_ast_enhanced.csv', verbose=False):
         """Procesa el dataset completo con las nuevas métricas"""
@@ -408,6 +527,66 @@ class EnhancedPlagiarismDetector:
         print(f"\n💾 Resultados guardados en: {output_csv}")
 
         return df_resultados
+
+    def find_problematic_files(self, base_path, csv_path):
+        """Find and debug files that can't be parsed"""
+        print("\n🔍 Searching for problematic files...")
+        df = pd.read_csv(csv_path)
+        df = df[df['source_dataset'].isin(['ir_plag', 'conplag'])]
+
+        problematic_files = []
+
+        for idx, row in df.iterrows():
+            if idx % 100 == 0:
+                print(f"Checking file {idx}/{len(df)}...")
+
+            dataset = row['source_dataset']
+            file1 = row['file1']
+            file2 = row['file2']
+            file1_base = os.path.splitext(file1)[0]
+            file2_base = os.path.splitext(file2)[0]
+
+            # Construct paths as in process_dataset
+            if dataset == 'ir_plag':
+                folder = row['folder_name']
+                folder_path = os.path.join(base_path, folder)
+                path1 = os.path.join(folder_path, 'original.java')
+                path2 = os.path.join(folder_path, 'compared.java')
+            elif dataset == 'conplag':
+                folder1 = os.path.join(base_path, f"{file1_base}_{file2_base}")
+                folder2 = os.path.join(base_path, f"{file2_base}_{file1_base}")
+
+                if os.path.isdir(folder1):
+                    folder_path = folder1
+                elif os.path.isdir(folder2):
+                    folder_path = folder2
+                else:
+                    continue
+
+                path1 = os.path.join(folder_path, file1)
+                path2 = os.path.join(folder_path, file2)
+            else:
+                continue
+
+            # Check if files can be parsed
+            for path in [path1, path2]:
+                if not os.path.exists(path):
+                    continue
+
+                try:
+                    code = self.read_java_file(path)
+                    javalang.parse.parse(code)
+                except Exception as e:
+                    problematic_files.append((path, str(e)))
+                    print(f"💥 Found problematic file: {path}")
+                    print(f"   Error: {str(e)}")
+
+                    # Debug first few problematic files in detail
+                    if len(problematic_files) <= 3:
+                        self.debug_file_parsing(path)
+
+        print(f"\n✅ Found {len(problematic_files)} problematic files")
+        return problematic_files
 
 
 # Función principal para ejecutar

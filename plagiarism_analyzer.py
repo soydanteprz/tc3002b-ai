@@ -104,7 +104,7 @@ class PlagiarismAnalyzer:
         # Encontrar mejor umbral
         best_idx = results_df['f1'].idxmax()
         best_threshold = results_df.loc[best_idx, 'threshold']
-        print(f"\n🎯 Mejor umbral para {metric}: {best_threshold:.3f}")
+        print(f"\nMejor umbral para {metric}: {best_threshold:.3f}")
         print(f"   F1-Score: {results_df.loc[best_idx, 'f1']:.3f}")
         print(f"   Precision: {results_df.loc[best_idx, 'precision']:.3f}")
         print(f"   Recall: {results_df.loc[best_idx, 'recall']:.3f}")
@@ -145,10 +145,10 @@ class PlagiarismAnalyzer:
         fn_mask = (predictions == 0) & (self.df['es_plagio'] == 1)
         fn_cases = self.df[fn_mask].sort_values(metric, ascending=True)
 
-        print("\n📊 Análisis de Fallos")
+        print("\nAnálisis de Fallos")
         print("=" * 60)
 
-        print(f"\n❌ Falsos Positivos ({len(fp_cases)} casos):")
+        print(f"\nFalsos Positivos ({len(fp_cases)} casos):")
         print("  (Archivos NO plagiados pero detectados como plagio)")
         if len(fp_cases) > 0:
             print("\n  Top 5 casos más problemáticos:")
@@ -160,7 +160,7 @@ class PlagiarismAnalyzer:
             print(f"    • conplag: {(fp_cases['dataset'] == 'conplag').sum()}")
             print(f"    • ir_plag: {(fp_cases['dataset'] == 'ir_plag').sum()}")
 
-        print(f"\n\n❌ Falsos Negativos ({len(fn_cases)} casos):")
+        print(f"\n\nFalsos Negativos ({len(fn_cases)} casos):")
         print("  (Archivos plagiados NO detectados)")
         if len(fn_cases) > 0:
             print("\n  Top 5 casos más problemáticos:")
@@ -173,7 +173,7 @@ class PlagiarismAnalyzer:
 
         # Análisis de características de los fallos
         if len(fp_cases) > 0 or len(fn_cases) > 0:
-            print("\n\n📈 Características de los casos problemáticos:")
+            print("\n\nCaracterísticas de los casos problemáticos:")
 
             if len(fp_cases) > 0:
                 print("\n  Falsos Positivos - Valores promedio:")
@@ -193,7 +193,7 @@ class PlagiarismAnalyzer:
         """Genera un reporte completo de evaluación"""
         predictions = (self.df[metric] >= threshold).astype(int)
 
-        print("\n📋 REPORTE DE EVALUACIÓN DEL DETECTOR DE PLAGIO")
+        print("\nREPORTE DE EVALUACIÓN DEL DETECTOR DE PLAGIO")
         print("=" * 60)
 
         # Reporte de clasificación
@@ -265,7 +265,7 @@ class PlagiarismAnalyzer:
         comparison_df = pd.DataFrame(results)
         comparison_df = comparison_df.sort_values('f1', ascending=False)
 
-        print("\n🏆 Comparación de Métricas Individuales:")
+        print("\nComparación de Métricas Individuales:")
         print(comparison_df.to_string(index=False))
 
         # Visualizar comparación
@@ -296,39 +296,46 @@ class PlagiarismAnalyzer:
 # Función de ejemplo para ejecutar análisis
 def run_analysis():
     """Ejecuta el análisis completo"""
-    print("🔍 Iniciando análisis de resultados...")
+    print("Análisis de Plagio resultados")
 
     analyzer = PlagiarismAnalyzer('similarity_ast_enhanced.csv')
 
     # 1. Distribución de métricas
-    print("\n📊 Generando distribuciones de métricas...")
     analyzer.plot_metrics_distribution()
 
     # 2. Correlación entre métricas
-    print("\n🔗 Analizando correlaciones...")
     analyzer.plot_correlation_matrix()
 
     # 3. Curvas ROC
-    print("\n📈 Generando curvas ROC...")
     analyzer.plot_roc_curves()
 
     # 4. Evaluación de umbrales
-    print("\n🎯 Evaluando umbrales óptimos...")
     best_threshold = analyzer.evaluate_thresholds('combined_score')
 
     # 5. Reporte completo
-    print("\n📋 Generando reporte de evaluación...")
     analyzer.generate_report(threshold=best_threshold, metric='combined_score')
 
     # 6. Comparación de métricas
-    print("\n🏆 Comparando métricas individuales...")
     comparison = analyzer.compare_individual_metrics()
 
+    best_threshold = comparison.loc[comparison['f1'].idxmax(), 'best_threshold']
+    print(f"\nMejor umbral encontrado: {best_threshold:.3f} con F1-Score: {comparison['f1'].max():.3f}")
+
+
     # 7. Análisis de fallos
-    print("\n❌ Analizando casos de fallo...")
+    print("\nAnalizando casos de fallo")
     fp_cases, fn_cases = analyzer.analyze_failures(threshold=best_threshold)
 
-    print("\n✅ Análisis completado!")
+    if not fp_cases.empty or not fn_cases.empty:
+        print("\nCasos de fallo analizados:")
+        if not fp_cases.empty:
+            print(f"  Falsos Positivos: {len(fp_cases)} casos")
+        if not fn_cases.empty:
+            print(f"  Falsos Negativos: {len(fn_cases)} casos")
+
+    else:
+        print("\nNo se encontraron casos de fallo significativos.")
+
     print("\nArchivos generados:")
     print("  - metrics_distribution.png")
     print("  - metrics_correlation.png")
