@@ -38,15 +38,9 @@ Este proyecto implementa un sistema completo de detección de plagio en código 
 
 ```bash
 # 1. Clona el repositorio
-git clone https://github.com/tu_usuario/plagio-java-detector.git
-cd plagio-java-detector
+git clone https://github.com/soydanteprz/tc3002b-ai.git
 
-# 2. Crea un entorno virtual (opcional)
-python -m venv venv
-source venv/bin/activate  # en Unix/macOS
-venv\Scripts\activate     # en Windows
-
-# 3. Instala las dependencias
+# 2.  Instala las dependencias
 pip install -r requirements.txt
 ```
 
@@ -58,7 +52,7 @@ pip install -r requirements.txt
 Transforma el código en vectores de n-gramas para medir similitud textual. Detecta plagio incluso si el código ha sido reformulado.
 
 ### 🌳 AST-CC (Abstract Syntax Trees)
-Analiza la estructura sintáctica del código. Este enfoque es resistente a cambios superficiales como renombre de variables o formato distinto.
+Analiza la estructura sintáctica del código. Este enfoque es bueno contra cambios simples como renombre de variables o formato distinto.
 
 ### 🤖 Regresión Logística
 Modelo de clasificación que aprende patrones de plagio a partir de ejemplos reales. Usa como entrada vectores TF-IDF y genera predicciones con métricas precisas.
@@ -106,16 +100,7 @@ python astcc.py
 
 ---
 
-## 📌 Requisitos
-
-- Python 3.7+
-- Bibliotecas: `scikit-learn`, `javalang`, `pandas`, `matplotlib`, `seaborn`, `joblib`, etc.
-
-Instálalas automáticamente desde `requirements.txt`.
-
----
-
-## 📷 Ejemplos Visuales
+## 📷 Resultados
 
 | Matriz de Confusión (AST-CC) | Curva ROC (ML) | Características más importantes |
 |------------------------------|----------------|----------------------------------|
@@ -123,16 +108,8 @@ Instálalas automáticamente desde `requirements.txt`.
 
 ---
 
-## 🧠 Créditos
+## 🧠 Autores
 
-Este proyecto fue desarrollado como parte de un trabajo académico de detección de plagio en código Java por [Tu Nombre Aquí].
-
----
-
-## 📬 Contacto
-
-¿Tienes preguntas o sugerencias?  
-¡Estoy disponible para colaborar!
-
-📧 tu.email@example.com  
-🔗 [LinkedIn](https://linkedin.com/in/tuusuario) | [GitHub](https://github.com/tuusuario) | [Portafolio](https://tusitio.dev)
+Dante David Pérez Pérez
+Iván Rodríguez Cuevas
+Karla Alejandra Padilla González
