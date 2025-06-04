@@ -111,5 +111,7 @@ python astcc.py
 ## 🧠 Autores
 
 Dante David Pérez Pérez
+
 Iván Rodríguez Cuevas
+
 Karla Alejandra Padilla González
