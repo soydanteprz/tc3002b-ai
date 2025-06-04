@@ -1,0 +1,27 @@
+RESUMEN DE DIVISIÓN DEL DATASET
+========================================
+
+CONFIGURACIÓN:
+  Train: 957 pares (69.8%)
+  Validation: 136 pares (9.9%)
+  Test: 278 pares (20.3%)
+  Total: 1371 pares
+
+TRAIN:
+  Total: 957 pares
+  Plagiados: 423 (44.2%)
+  IR-Plag: 321, ConPlag: 636
+  Casos únicos: 28
+
+VALIDATION:
+  Total: 136 pares
+  Plagiados: 60 (44.1%)
+  IR-Plag: 45, ConPlag: 91
+  Casos únicos: 24
+
+TEST:
+  Total: 278 pares
+  Plagiados: 123 (44.2%)
+  IR-Plag: 94, ConPlag: 184
+  Casos únicos: 25
+

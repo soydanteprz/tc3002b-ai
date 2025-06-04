@@ -1,0 +1,35 @@
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.*;
+
+public class D {
+    public static void main(String[] args) {
+        FastScanner fs = new FastScanner();
+        int cases = fs.nextInt();
+        while(cases-->0){
+            int n = fs.nextInt(), k = fs.nextInt();
+            int[] positions = fs.readArray(k), temps = fs.readArray(k);
+            int[] forced = new int[n];
+            Arrays.fill(forced, Integer.MAX_VALUE/2);
+            for(int i=0; i<k; i++)
+                forced[positions[i]-1] = temps[i];
+            for(int i=1; i<n; i++)
+                forced[i] = Math.min(forced[i],forced[i-1]+1);
+            for(int i=n-2; i>=0; i--)
+                forced[i] = Math.min(forced[i], forced[i+1]+1);
+            for(int i=0; i<n; i++)
+                System.out.print(forced[i] + " ");
+            System.out.println();
+
+        }
+    }
+
+
+
+
+
+    //----------------------------------------------------------------------------------//
+    
+    
+}
