@@ -17,6 +17,9 @@ import joblib
 from typing import Dict, Tuple, List
 import warnings
 warnings.filterwarnings('ignore')
+from astcc import *
+
+
 
 
 class MLPlagiarismClassifier:
@@ -34,13 +37,15 @@ class MLPlagiarismClassifier:
         self.ngram_range = ngram_range
         self.max_features = max_features
 
-        self.vectorizer = TfidfVectorizer(
-            ngram_range=ngram_range,
-            lowercase=True,
-            max_features=max_features,
-            strip_accents='unicode',
-            stop_words='english'
-        )
+        # Use TFIDFPlagiarismDetector instead of direct TfidfVectorizer
+        self.tfidf_detector = TFIDFPlagiarismDetector()
+
+        # Configure the vectorizer inside the detector
+        self.tfidf_detector.vectorizer.ngram_range = ngram_range
+        self.tfidf_detector.vectorizer.max_features = max_features
+
+        # Keep reference to the vectorizer for convenience
+        self.vectorizer = self.tfidf_detector.vectorizer
 
         self.model = LogisticRegression(max_iter=1000, random_state=42)
         self.is_trained = False
