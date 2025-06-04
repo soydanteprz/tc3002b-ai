@@ -10,8 +10,6 @@ Un sistema completo para detectar plagio en código Java utilizando múltiples t
 
 ```bash
 # Clona el repositorio
-git clone https://github.com/yourusername/java-plagiarism-detection.git
-cd java-plagiarism-detection
 
 # Instala las dependencias requeridas
 pip install -r requirements.txt
