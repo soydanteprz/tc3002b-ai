@@ -21,7 +21,7 @@ def load_dataset_info(dataset_path: Path) -> pd.DataFrame:
         raise FileNotFoundError(f"No se encontró {csv_file}")
 
     df = pd.read_csv(csv_file)
-    print(f"📊 Cargado dataset con {len(df)} pares")
+    print(f"Cargado dataset con {len(df)} pares")
 
     return df
 
@@ -30,7 +30,7 @@ def verify_folders_exist(dataset_path: Path, df: pd.DataFrame) -> pd.DataFrame:
     Verifica que todas las carpetas mencionadas en el CSV existan
     """
 
-    print("🔍 Verificando existencia de carpetas...")
+    print("Verificando existencia de carpetas...")
 
     valid_rows = []
     missing_folders = []
@@ -56,7 +56,7 @@ def verify_folders_exist(dataset_path: Path, df: pd.DataFrame) -> pd.DataFrame:
             print(f"   ... y {len(missing_folders) - 5} más")
 
     valid_df = pd.DataFrame(valid_rows)
-    print(f"✅ {len(valid_df)}/{len(df)} carpetas válidas")
+    print(f"{len(valid_df)}/{len(df)} carpetas válidas")
 
     return valid_df
 
