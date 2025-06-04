@@ -100,7 +100,7 @@ python astcc.py
 
 ---
 
-## 📷 Resultados
+## 📷 Ejemplos de gráficas
 
 | Matriz de Confusión (AST-CC) | Curva ROC (ML) | Características más importantes |
 |------------------------------|----------------|----------------------------------|
