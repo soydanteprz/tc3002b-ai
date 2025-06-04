@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
-Sistema de clasificación de plagio usando Machine Learning
-con TF-IDF (n-gramas) y Logistic Regression
+Plagiarism detection using Machine Learning
+TF-IDF (n-gramas) and Logistic Regression
 """
 
 import os
@@ -21,21 +21,19 @@ warnings.filterwarnings('ignore')
 
 class MLPlagiarismClassifier:
     """
-    Clasificador de plagio usando TF-IDF con n-gramas y Logistic Regression
+    Plagiarism detection classifier using Machine Learning
     """
 
     def __init__(self, ngram_range=(1, 2), max_features=5000):
         """
-        Inicializa el clasificador
-
-        Args:
-            ngram_range: Rango de n-gramas (por defecto 1-2)
-            max_features: Número máximo de características
+        Initialice the classifier with TF-IDF and Logistic Regression
+        :param ngram_range: Range of n-grams to use (default: unigrams and bigrams)
+        :param max_features: Maximum number of features to extract
+        :return: None
         """
         self.ngram_range = ngram_range
         self.max_features = max_features
 
-        # Inicializar vectorizador y modelo
         self.vectorizer = TfidfVectorizer(
             ngram_range=ngram_range,
             lowercase=True,
@@ -49,21 +47,14 @@ class MLPlagiarismClassifier:
 
     def load_dataset(self, base_path: str, split: str) -> Tuple[List[str], List[int], pd.DataFrame]:
         """
-        Carga y prepara los datos de un split específico
-
-        Args:
-            base_path: Ruta base del dataset
-            split: 'train', 'val' o 'test'
-
-        Returns:
-            texts: Lista de textos concatenados
-            labels: Lista de etiquetas
-            df: DataFrame con información completa
+        Loads the dataset from CSV files and prepares the text and labels
+        :param base_path: Base path where the dataset is located
+        :param split: Split of the dataset ('train', 'validation', 'test')
+        :return: Tuple with texts, labels and DataFrame with valid indices
         """
         csv_path = os.path.join(base_path, f'{split}.csv')
         df = pd.read_csv(csv_path)
 
-        # Filtrar datasets si es necesario
         if 'source_dataset' in df.columns:
             df = df[df['source_dataset'].isin(['ir_plag', 'conplag'])]
 
@@ -74,7 +65,6 @@ class MLPlagiarismClassifier:
         print(f"\nCargando datos de {split}...")
 
         for idx, row in df.iterrows():
-            # Construir rutas de archivos
             dataset = row.get('source_dataset', 'unknown')
             label = row['label']
 
@@ -112,16 +102,13 @@ class MLPlagiarismClassifier:
             else:
                 continue
 
-            # Verificar que los archivos existen
             if os.path.exists(path1) and os.path.exists(path2):
                 try:
-                    # Leer y concatenar archivos
                     with open(path1, 'r', encoding='utf-8', errors='ignore') as f:
                         text1 = f.read()
                     with open(path2, 'r', encoding='utf-8', errors='ignore') as f:
                         text2 = f.read()
 
-                    # Concatenar textos para crear representación del par
                     combined_text = text1 + " [SEP] " + text2
 
                     texts.append(combined_text)
@@ -136,7 +123,6 @@ class MLPlagiarismClassifier:
         print(f"Plagios: {sum(labels)} ({sum(labels)/len(labels)*100:.1f}%)")
         print(f"No plagios: {len(labels) - sum(labels)} ({(len(labels) - sum(labels))/len(labels)*100:.1f}%)")
 
-        # Crear DataFrame con índices válidos
         df_valid = df.iloc[valid_indices].copy()
         df_valid['combined_text'] = texts
 
@@ -146,18 +132,17 @@ class MLPlagiarismClassifier:
               X_val: List[str] = None, y_val: List[int] = None,
               optimize_hyperparameters: bool = False):
         """
-        Entrena el modelo
-
-        Args:
-            X_train: Textos de entrenamiento
-            y_train: Etiquetas de entrenamiento
-            X_val: Textos de validación (opcional)
-            y_val: Etiquetas de validación (opcional)
-            optimize_hyperparameters: Si optimizar hiperparámetros
+        Trains the model with the provided training data
+        :param X_train: List of training texts
+        :param y_train: List of training labels
+        :param X_val: List of validation texts 
+        :param y_val: List of validation labels
+        :param optimize_hyperparameters: Whether to optimize hyperparameters using grid search
+        :return: None
         """
-        print("\n🧠 Entrenando modelo...")
+        print("\n Entrenando el modelo")
 
-        # Vectorizar datos de entrenamiento
+        # Vectorize the training data
         print("Vectorizando con TF-IDF...")
         X_train_tfidf = self.vectorizer.fit_transform(X_train)
         print(f"Dimensiones: {X_train_tfidf.shape}")
@@ -166,7 +151,7 @@ class MLPlagiarismClassifier:
         if optimize_hyperparameters and X_val is not None:
             print("Optimizando hiperparámetros")
 
-            # Grid search para optimización
+            # Grid search for hyperparameter tuning
             param_grid = {
                 'C': [0.1, 1.0, 10.0],
                 'penalty': ['l1', 'l2'],
@@ -189,13 +174,11 @@ class MLPlagiarismClassifier:
             print(f"Mejor score CV: {grid_search.best_score_:.3f}")
 
         else:
-            # Entrenar con parámetros por defecto
             self.model.fit(X_train_tfidf, y_train)
 
         self.is_trained = True
-        print("Modelo entrenado exitosamente")
+        print("Modelo entrenado")
 
-        # Evaluar en validación si está disponible
         if X_val is not None and y_val is not None:
             X_val_tfidf = self.vectorizer.transform(X_val)
             y_val_pred = self.model.predict(X_val_tfidf)
@@ -204,13 +187,9 @@ class MLPlagiarismClassifier:
 
     def predict(self, texts: List[str]) -> np.ndarray:
         """
-        Realiza predicciones
-
-        Args:
-            texts: Lista de textos
-
-        Returns:
-            Predicciones
+        Makes predictions on the provided texts
+        :param texts: List of texts to predict
+        :return: Array of predictions
         """
         if not self.is_trained:
             raise ValueError("El modelo no ha sido entrenado")
@@ -220,13 +199,9 @@ class MLPlagiarismClassifier:
 
     def predict_proba(self, texts: List[str]) -> np.ndarray:
         """
-        Obtiene probabilidades de predicción
-
-        Args:
-            texts: Lista de textos
-
-        Returns:
-            Probabilidades
+        Makes probability predictions on the provided texts
+        :param texts: List of texts to predict probabilities
+        :return: Array of probabilities
         """
         if not self.is_trained:
             raise ValueError("El modelo no ha sido entrenado")
@@ -237,48 +212,39 @@ class MLPlagiarismClassifier:
     def evaluate(self, X_test: List[str], y_test: List[int],
                  dataset_name: str = "Test") -> Dict:
         """
-        Evalúa el modelo y genera reportes
-
-        Args:
-            X_test: Textos de prueba
-            y_test: Etiquetas de prueba
-            dataset_name: Nombre del dataset
-
-        Returns:
-            Diccionario con métricas
+        Evaluates the model on the provided test data
+        :param X_test: List of test texts
+        :param y_test: List of test labels
+        :param dataset_name: Name of the dataset for reporting
+        :return: Dictionary with evaluation metrics
         """
         print(f"\nEvaluando en {dataset_name}...")
 
-        # Transformar y predecir
         X_test_tfidf = self.vectorizer.transform(X_test)
         y_pred = self.model.predict(X_test_tfidf)
         y_proba = self.model.predict_proba(X_test_tfidf)[:, 1]
 
-        # Calcular métricas
         accuracy = accuracy_score(y_test, y_pred)
 
-        # Report detallado
         print(f"\n{dataset_name} Classification Report:")
         print("=" * 60)
         print(classification_report(y_test, y_pred,
                                     target_names=['No Plagio', 'Plagio'],
                                     digits=3))
 
-        # Calcular AUC si es posible
+        # Calculate AUC-ROC score
         try:
             auc_score = roc_auc_score(y_test, y_proba)
             print(f"AUC-ROC Score: {auc_score:.3f}")
         except:
             auc_score = None
 
-        # Generar matriz de confusión
         self._plot_confusion_matrix(y_test, y_pred, dataset_name)
 
-        # Generar curva ROC
+        # Roc
         if auc_score is not None:
             self._plot_roc_curve(y_test, y_proba, dataset_name)
 
-        # Guardar resultados
         results = pd.DataFrame({
             'TrueLabel': y_test,
             'Predicted': y_pred,
@@ -287,7 +253,7 @@ class MLPlagiarismClassifier:
 
         output_file = f"ml_results_{dataset_name.lower()}.csv"
         results.to_csv(output_file, index=False)
-        print(f"\n💾 Resultados guardados en: {output_file}")
+        print(f"\n Resultados guardados en: {output_file}")
 
         return {
             'accuracy': accuracy,
@@ -297,7 +263,13 @@ class MLPlagiarismClassifier:
         }
 
     def _plot_confusion_matrix(self, y_true, y_pred, dataset_name):
-        """Genera y guarda matriz de confusión"""
+        """
+        Generates and saves confusion matrix plot
+        :param y_true: True labels
+        :param y_pred: Predicted labels
+        :param dataset_name: Name of the dataset for the plot title
+        :return: None
+        """
         cm = confusion_matrix(y_true, y_pred)
 
         plt.figure(figsize=(8, 6))
@@ -337,10 +309,9 @@ class MLPlagiarismClassifier:
 
     def save_model(self, filepath: str = "ml_plagiarism_model.pkl"):
         """
-        Guarda el modelo entrenado
-
-        Args:
-            filepath: Ruta donde guardar el modelo
+        Saves the trained model to a file
+        :param filepath: Path to save the model
+        :return: None
         """
         if not self.is_trained:
             raise ValueError("El modelo no ha sido entrenado")
@@ -357,10 +328,9 @@ class MLPlagiarismClassifier:
 
     def load_model(self, filepath: str = "ml_plagiarism_model.pkl"):
         """
-        Carga un modelo previamente entrenado
-
-        Args:
-            filepath: Ruta del modelo guardado
+        Loads a trained model from a file
+        :param filepath: Path to the model file
+        :return: None
         """
         model_data = joblib.load(filepath)
 
@@ -374,105 +344,87 @@ class MLPlagiarismClassifier:
 
     def analyze_feature_importance(self, top_n: int = 20):
         """
-        Analiza las características más importantes
-
-        Args:
-            top_n: Número de características a mostrar
+        Analyzes and visualizes the most important features for the model
+        :param top_n: Number of top features to display
+        :return: None
         """
         if not self.is_trained:
             raise ValueError("El modelo no ha sido entrenado")
 
-        # Obtener nombres de características y coeficientes
         feature_names = self.vectorizer.get_feature_names_out()
         coefficients = self.model.coef_[0]
 
-        # Crear DataFrame con características y coeficientes
         feature_importance = pd.DataFrame({
             'feature': feature_names,
             'coefficient': coefficients,
             'abs_coefficient': np.abs(coefficients)
         })
 
-        # Ordenar por importancia absoluta
         feature_importance = feature_importance.sort_values('abs_coefficient', ascending=False)
 
-        # Visualizar top características
         plt.figure(figsize=(10, 8))
 
-        # Top características positivas (indican plagio)
         top_positive = feature_importance[feature_importance['coefficient'] > 0].head(top_n)
-        # Top características negativas (indican no plagio)
         top_negative = feature_importance[feature_importance['coefficient'] < 0].head(top_n)
 
-        # Combinar y ordenar
         top_features = pd.concat([top_positive, top_negative]).sort_values('coefficient')
 
-        # Graficar
         colors = ['green' if x > 0 else 'red' for x in top_features['coefficient']]
         plt.barh(range(len(top_features)), top_features['coefficient'], color=colors)
         plt.yticks(range(len(top_features)), top_features['feature'])
         plt.xlabel('Coeficiente')
-        plt.title(f'Top {top_n} Características Más Importantes')
+        plt.title(f'Top {top_n} Caracteristicas mas importantes')
         plt.tight_layout()
 
         plt.savefig('ml_feature_importance.png', dpi=300, bbox_inches='tight')
         plt.close()
 
-        print(f"\nTop {top_n} características para detectar PLAGIO:")
+        print(f"\nTop {top_n} caracteristicas para detectar plagio:")
         for _, row in top_positive.head(10).iterrows():
             print(f"{row['feature']}: {row['coefficient']:.3f}")
 
-        print(f"\nTop {top_n} características para detectar NO PLAGIO:")
+        print(f"\nTop {top_n} caracteristicas para detectar NO plagio:")
         for _, row in top_negative.head(10).iterrows():
             print(f"{row['feature']}: {row['coefficient']:.3f}")
 
 
 def main():
     """
-    Función principal para entrenar y evaluar el clasificador ML
+    Main function to run the plagiarism detection system
     """
-    print("SISTEMA DE CLASIFICACIÓN DE PLAGIO CON MACHINE LEARNING")
+    print("SISTEMA DE CLASIFICACION DE PLAGIO")
     print("=" * 70)
 
-    # Configuración
     BASE_PATH = "data/splits"
 
-    # Inicializar clasificador
     classifier = MLPlagiarismClassifier(
-        ngram_range=(1, 2),  # Unigramas y bigramas
-        max_features=5000    # Límite de características
+        ngram_range=(1, 2),
+        max_features=5000 
     )
 
-    # 1. Cargar datasets
     print("\nCARGANDO DATASETS")
     X_train, y_train, df_train = classifier.load_dataset(BASE_PATH, 'train')
     X_val, y_val, df_val = classifier.load_dataset(BASE_PATH, 'validation')
     X_test, y_test, df_test = classifier.load_dataset(BASE_PATH, 'test')
 
-    # 2. Entrenar modelo
     print("\nENTRENAMIENTO")
     classifier.train(
         X_train, y_train,
         X_val, y_val,
-        optimize_hyperparameters=True  # Optimizar hiperparámetros
+        optimize_hyperparameters=True  # Optimize hyperparameters
     )
 
-    # 3. Evaluar en validación
     print("\nEVALUACIÓN EN VALIDACIÓN")
     val_results = classifier.evaluate(X_val, y_val, "Validation")
 
-    # 4. Evaluar en test
     print("\nEVALUACIÓN EN TEST")
     test_results = classifier.evaluate(X_test, y_test, "Test")
 
-    # 5. Analizar características importantes
     print("\nANÁLISIS DE CARACTERÍSTICAS")
     classifier.analyze_feature_importance(top_n=20)
 
-    # 6. Guardar modelo
     classifier.save_model("ml_plagiarism_model.pkl")
 
-    # 7. Comparación con métodos anteriores
     print("\nRESUMEN DE RESULTADOS")
     print("=" * 70)
     print(f"Validation Accuracy: {val_results['accuracy']:.3f}")
@@ -480,7 +432,6 @@ def main():
     if test_results['auc']:
         print(f"Test AUC-ROC: {test_results['auc']:.3f}")
 
-    # Crear resumen comparativo
     summary = pd.DataFrame({
         'Método': ['Logistic Regression (TF-IDF n-grams)'],
         'Val_Accuracy': [val_results['accuracy']],
@@ -491,7 +442,7 @@ def main():
     summary.to_csv('ml_summary_results.csv', index=False)
     print("\nResumen guardado en: ml_summary_results.csv")
 
-    print("\nProceso completado exitosamente!")
+    print("\nProceso completado")
 
 
 if __name__ == "__main__":

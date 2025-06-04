@@ -377,6 +377,8 @@ class TFIDFPlagiarismDetector:
     def read_file(self, filepath):
         """
         Read a Java file
+        :param filepath: Path to the Java file
+        :return: Content of the file as a string
         """
         try:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
@@ -388,6 +390,8 @@ class TFIDFPlagiarismDetector:
     def preprocess_code(self, code):
         """
         Clean and normalize Java code for better comparison
+        :param code: Java code as a string
+        :return: Preprocessed code as a string
         """
         code = re.sub(r'//.*?\n', '\n', code)
         code = re.sub(r'/\*.*?\*/', '', code, flags=re.DOTALL)
@@ -403,6 +407,9 @@ class TFIDFPlagiarismDetector:
     def calculate_similarity(self, text1, text2):
         """
         Calculate TF-IDF similarity between two text samples
+        :param text1: First text sample
+        :param text2: Second text sample
+        :return: Similarity score between 0 and 1
         """
         if not text1 or not text2:
             return 0.0
@@ -421,6 +428,7 @@ class TFIDFPlagiarismDetector:
         Detect if two files are plagiarized
         :param file1_path: Path to the first Java file
         :param file2_path: Path to the second Java file
+        :return: Dictionary with similarity score and plagiarism status
         """
         code1 = self.read_file(file1_path)
         code2 = self.read_file(file2_path)
