@@ -135,7 +135,7 @@ class MLPlagiarismClassifier:
         Trains the model with the provided training data
         :param X_train: List of training texts
         :param y_train: List of training labels
-        :param X_val: List of validation texts 
+        :param X_val: List of validation texts
         :param y_val: List of validation labels
         :param optimize_hyperparameters: Whether to optimize hyperparameters using grid search
         :return: None
@@ -251,7 +251,7 @@ class MLPlagiarismClassifier:
             'Probability': y_proba
         })
 
-        output_file = f"ml_results_{dataset_name.lower()}.csv"
+        output_file = f"csv/ml_results_{dataset_name.lower()}.csv"
         results.to_csv(output_file, index=False)
         print(f"\n Resultados guardados en: {output_file}")
 
@@ -280,7 +280,7 @@ class MLPlagiarismClassifier:
         plt.xlabel("Predicho")
         plt.ylabel("Real")
 
-        filename = f"ml_confusion_matrix_{dataset_name.lower()}.png"
+        filename = f"images/ml_confusion_matrix_{dataset_name.lower()}.png"
         plt.savefig(filename, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"Matriz de confusión guardada en: {filename}")
@@ -302,7 +302,7 @@ class MLPlagiarismClassifier:
         plt.legend(loc="lower right")
         plt.grid(True, alpha=0.3)
 
-        filename = f"ml_roc_curve_{dataset_name.lower()}.png"
+        filename = f"images/ml_roc_curve_{dataset_name.lower()}.png"
         plt.savefig(filename, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"Curva ROC guardada en: {filename}")
@@ -376,7 +376,7 @@ class MLPlagiarismClassifier:
         plt.title(f'Top {top_n} Caracteristicas mas importantes')
         plt.tight_layout()
 
-        plt.savefig('ml_feature_importance.png', dpi=300, bbox_inches='tight')
+        plt.savefig('images/ml_feature_importance.png', dpi=300, bbox_inches='tight')
         plt.close()
 
         print(f"\nTop {top_n} caracteristicas para detectar plagio:")
@@ -394,12 +394,15 @@ def main():
     """
     print("SISTEMA DE CLASIFICACION DE PLAGIO")
     print("=" * 70)
+    # Create directories if they don't exist
+    os.makedirs("images", exist_ok=True)
+    os.makedirs("csv", exist_ok=True)
 
     BASE_PATH = "data/splits"
 
     classifier = MLPlagiarismClassifier(
         ngram_range=(1, 2),
-        max_features=5000 
+        max_features=5000
     )
 
     print("\nCARGANDO DATASETS")
@@ -423,7 +426,7 @@ def main():
     print("\nANÁLISIS DE CARACTERÍSTICAS")
     classifier.analyze_feature_importance(top_n=20)
 
-    classifier.save_model("ml_plagiarism_model.pkl")
+    classifier.save_model("models/ml_plagiarism_model.pkl")
 
     print("\nRESUMEN DE RESULTADOS")
     print("=" * 70)
@@ -439,7 +442,7 @@ def main():
         'Test_AUC': [test_results['auc'] if test_results['auc'] else 'N/A']
     })
 
-    summary.to_csv('ml_summary_results.csv', index=False)
+    summary.to_csv('csv/ml_summary_results.csv', index=False)
     print("\nResumen guardado en: ml_summary_results.csv")
 
     print("\nProceso completado")

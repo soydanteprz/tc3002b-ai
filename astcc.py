@@ -4,17 +4,12 @@ Implementation of the algorithm based on the paper "An AST-Based Code Plagiarism
 
 import os
 import javalang
-import hashlib
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import List, Dict, Set, Tuple, Optional
+from typing import List, Dict, Tuple, Optional
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.metrics import roc_curve, auc, confusion_matrix
 import pandas as pd
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 import re
 
 

@@ -1,5 +1,7 @@
 from sklearn.metrics import classification_report
-
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
 from astcc import *
 
 def plot_confusion_matrix(y_true, y_pred, title, filename):
@@ -26,7 +28,7 @@ def plot_confusion_matrix(y_true, y_pred, title, filename):
 
 def compare_plagiarism_detectors(base_path="data/splits/train/",
                                  csv_path="data/splits/train.csv",
-                                 output_csv="comparison_results.csv"):
+                                 output_csv="csv/comparison_results.csv"):
     """
     Compare TF-IDF and AST-CC plagiarism detection methods and output results to CSV
     :param base_path: Base path where the dataset is located
@@ -155,7 +157,7 @@ def compare_plagiarism_detectors(base_path="data/splits/train/",
             results_df['label'],
             results_df['tfidf_prediction'],
             "Matriz de Confusión - TF-IDF",
-            "tfidf_confusion_matrix.png"
+            'images/tfidf_confusion_matrix.png'
         )
 
         print("\nTF-IDF Report:")
@@ -177,7 +179,7 @@ def compare_plagiarism_detectors(base_path="data/splits/train/",
             results_df['label'],
             results_df['astcc_prediction'],
             "Matriz de Confusión - AST-CC",
-            "astcc_confusion_matrix.png"
+            "images/astcc_confusion_matrix.png"
         )
 
 
@@ -189,4 +191,7 @@ def compare_plagiarism_detectors(base_path="data/splits/train/",
     return results_df
 
 if __name__ == "__main__":
+    # Create directories if they don't exist
+    os.makedirs("images", exist_ok=True)
+    os.makedirs("csv", exist_ok=True)
     compare_plagiarism_detectors()
