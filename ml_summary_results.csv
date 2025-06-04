@@ -1,0 +1,2 @@
+Método,Val_Accuracy,Test_Accuracy,Test_AUC
+Logistic Regression (TF-IDF n-grams),0.8602941176470589,0.8453237410071942,0.9011801730920534

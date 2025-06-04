@@ -3,7 +3,14 @@ from sklearn.metrics import classification_report
 from astcc import *
 
 def plot_confusion_matrix(y_true, y_pred, title, filename):
-    """Genera y guarda una matriz de confusión"""
+    """
+    Generates and saves a confusion matrix
+    :param y_true: Etiquetas verdaderas
+    :param y_pred: Etiquetas predichas
+    :param title: Título de la matriz
+    :param filename: Nombre del archivo donde se guardará la matriz
+    :return: None
+    """
     cm = confusion_matrix(y_true, y_pred)
     plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
@@ -15,13 +22,17 @@ def plot_confusion_matrix(y_true, y_pred, title, filename):
     plt.tight_layout()
     plt.savefig(filename)
     plt.close()
-    print(f"✅ Matriz de confusión guardada en: {filename}")
+    print(f"Matriz de confusión guardada en: {filename}")
 
 def compare_plagiarism_detectors(base_path="data/splits/train/",
                                  csv_path="data/splits/train.csv",
                                  output_csv="comparison_results.csv"):
     """
     Compare TF-IDF and AST-CC plagiarism detection methods and output results to CSV
+    :param base_path: Base path where the dataset is located
+    :param csv_path: Path to the CSV file containing dataset information
+    :param output_csv: Path to save the comparison results
+    :return: DataFrame with comparison results
     """
     # Initialize detectors
     tfidf_detector = TFIDFPlagiarismDetector()
@@ -32,12 +43,10 @@ def compare_plagiarism_detectors(base_path="data/splits/train/",
     if 'source_dataset' in df.columns:
         df = df[df['source_dataset'].isin(['ir_plag', 'conplag'])]
 
-    print(f"🔍 Analyzing {len(df)} file pairs with both methods...")
+    print(f"Analyzing {len(df)} file pairs with both methods")
     results = []
 
     for idx, row in df.iterrows():
-        if idx % 50 == 0 and idx > 0:
-            print(f"  ▶ Processed {idx}/{len(df)} pairs")
 
         # Extract file information
         label = row['label']
@@ -117,7 +126,7 @@ def compare_plagiarism_detectors(base_path="data/splits/train/",
             })
 
         except Exception as e:
-            print(f"  ❌ Error processing {path1} and {path2}: {e}")
+            raise RuntimeError(f"Error processing files {path1} and {path2}: {e}")
 
     # Create DataFrame and calculate statistics
     results_df = pd.DataFrame(results)
@@ -127,7 +136,7 @@ def compare_plagiarism_detectors(base_path="data/splits/train/",
         results_df.to_csv(output_csv, index=False)
 
         # Print summary statistics
-        print(f"\n📊 Comparison Summary:")
+        print(f"\nComparison Summary:")
         print(f"  Total pairs analyzed: {len(results_df)}")
 
         tfidf_accuracy = results_df['tfidf_correct'].mean()
@@ -139,7 +148,7 @@ def compare_plagiarism_detectors(base_path="data/splits/train/",
         print(f"  Both wrong: {results_df['both_wrong'].sum()} ({results_df['both_wrong'].mean():.2%})")
 
         # Generate confusion matrices
-        print("\n📈 Generating confusion matrices...")
+        print("\nGenerating confusion matrices...")
 
         # TF-IDF confusion matrix
         plot_confusion_matrix(
@@ -173,9 +182,9 @@ def compare_plagiarism_detectors(base_path="data/splits/train/",
 
 
 
-        print(f"\n💾 Results saved to {output_csv}")
+        print("\nComparison results saved to:", output_csv)
     else:
-        print("❌ No valid file pairs to analyze")
+        print("No valid file pairs found for analysis.")
 
     return results_df
 

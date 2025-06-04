@@ -1,7 +1,5 @@
 """
-Implementación del algoritmo AST-CC (AST-based Code Comparison)
-basado en el paper "An AST-Based Code Plagiarism Detection Algorithm"
-de Jingling Zhao et al.
+Implementation of the algorithm based on the paper "An AST-Based Code Plagiarism Detection Algorithm"
 """
 
 import os
@@ -23,7 +21,7 @@ import re
 
 @dataclass
 class NodeInfo:
-    """Información de un nodo del AST"""
+    """AST node information"""
     hash_value: int
     node_type: str
     position: int
@@ -35,7 +33,7 @@ class NodeInfo:
 
 @dataclass
 class SimilarityResult:
-    """Resultado de similitud entre dos archivos"""
+    """Similarity result between two files"""
     file1: str
     file2: str
     similar_nodes: List[Tuple[NodeInfo, NodeInfo]]
@@ -44,18 +42,18 @@ class SimilarityResult:
 
 class ASTCCDetector:
     """
-    Implementación del algoritmo AST-CC para detección de plagio
+    Implementation of the AST algorithm
     """
 
     def __init__(self):
-        # Pesos para operaciones especiales (para evitar falsos positivos)
+        # Weights for binary operations
         self.operation_weights = {
             '-': {'left': 1, 'right': 2},  # Resta
             '/': {'left': 1, 'right': 2},  # División
             '%': {'left': 1, 'right': 2},  # Módulo
         }
 
-        # Valores hash base para diferentes tipos de nodos
+        # Hash values for different node types
         self.node_type_values = {
             'MethodDeclaration': 100,
             'ClassDeclaration': 200,
@@ -71,22 +69,28 @@ class ASTCCDetector:
         }
 
     def _get_node_type_value(self, node) -> int:
-        """Obtiene el valor base para un tipo de nodo"""
+        """
+        Obtains the hash value for a node type
+        :param node: AST node
+        :return: Hash value for the node type
+        """
         node_type = type(node).__name__
         return self.node_type_values.get(node_type, 5)
 
     def _calculate_node_hash(self, node, parent_node=None) -> int:
         """
-        Calcula el hash de un nodo según el algoritmo del paper
+        Calculates the hash for a single AST node
+        :param node: AST node
+        :param parent_node: Parent node (optional)
+        :return: Hash value for the node
         """
-        # Valor base del tipo de nodo
+        # Base value based on node type
         base_value = self._get_node_type_value(node)
 
-        # Para operaciones binarias, aplicar pesos especiales
         if isinstance(node, javalang.tree.BinaryOperation):
             operator = node.operator
             if operator in self.operation_weights:
-                # Calcular hash considerando pesos diferentes para izquierda y derecha
+                # Hash calculation
                 left_weight = self.operation_weights[operator]['left']
                 right_weight = self.operation_weights[operator]['right']
 
@@ -95,7 +99,6 @@ class ASTCCDetector:
 
                 return base_value + left_weight * left_hash + right_weight * right_hash
 
-        # Para otros nodos, sumar los hashes de los hijos
         child_hash_sum = 0
         for attr_name in node.attrs:
             attr_value = getattr(node, attr_name)
@@ -110,14 +113,22 @@ class ASTCCDetector:
         return base_value + child_hash_sum
 
     def _calculate_subtree_hash(self, node) -> int:
-        """Calcula el hash de un subárbol completo"""
+        """
+        Calculate the hash for a subtree
+        :param node: AST node
+        :return: Hash value for the subtree
+        """
         if node is None:
             return 0
 
         return self._calculate_node_hash(node)
 
     def _count_children(self, node) -> int:
-        """Cuenta el número de hijos directos de un nodo"""
+        """
+        Counts the number of children nodes for a given AST node
+        :param node: AST node
+        :return: Number of child nodes
+        """
         count = 0
         for attr_name in node.attrs:
             attr_value = getattr(node, attr_name)
@@ -130,29 +141,27 @@ class ASTCCDetector:
 
     def extract_ast_info(self, code: str, filename: str = "") -> Dict[int, List[NodeInfo]]:
         """
-        Extrae información del AST y la organiza por número de sub-nodos
-        Retorna: HashListArray donde el índice es el número de sub-nodos
+        Extracts AST information from the given Java code
+        :param code: Java code as a string
+        :param filename: Name of the source file (optional)
+        :return: Dictionary mapping number of children to lists of NodeInfo objects
         """
         hash_list_array = defaultdict(list)
 
         try:
             tree = javalang.parse.parse(code)
 
-            # Recorrer el AST
+            # Iterate through the AST tree
             position = 0
             for path, node in tree:
-                # Calcular hash del nodo
                 node_hash = self._calculate_node_hash(node)
 
-                # Contar hijos
                 num_children = self._count_children(node)
 
-                # Obtener línea (si está disponible)
                 line_number = 0
                 if hasattr(node, 'position') and node.position:
                     line_number = node.position.line
 
-                # Crear información del nodo
                 node_info = NodeInfo(
                     hash_value=node_hash,
                     node_type=type(node).__name__,
@@ -162,7 +171,6 @@ class ASTCCDetector:
                     source_file=filename
                 )
 
-                # Almacenar en el array según el número de hijos
                 hash_list_array[num_children].append(node_info)
                 position += 1
 
@@ -174,11 +182,13 @@ class ASTCCDetector:
     def compare_hash_arrays(self, suspected_array: Dict[int, List[NodeInfo]],
                             original_array: Dict[int, List[NodeInfo]]) -> List[Tuple[NodeInfo, NodeInfo]]:
         """
-        Compara dos arrays de hash según el algoritmo del paper
+        Compares two hash arrays to find similar nodes
+        :param suspected_array: Dictionary of suspected nodes
+        :param original_array: Dictionary of original nodes
+        :return: List of tuples with similar nodes (suspected, original)
         """
         similar_nodes = []
 
-        # Comparar solo nodos con el mismo número de hijos
         for num_children in suspected_array.keys():
             if num_children not in original_array:
                 continue
@@ -188,32 +198,27 @@ class ASTCCDetector:
             original_nodes = sorted(original_array[num_children],
                                     key=lambda x: (x.hash_value, x.position))
 
-            # Algoritmo de comparación del paper
             i, j = 0, 0
 
             while i < len(suspected_nodes) and j < len(original_nodes):
                 susp_node = suspected_nodes[i]
                 orig_node = original_nodes[j]
 
-                # Si el nodo raíz es igual, todos los nodos son similares
                 if num_children == 0 and susp_node.hash_value == orig_node.hash_value:
                     similar_nodes.append((susp_node, orig_node))
                     break
 
-                # Verificar si los padres ya fueron comparados (optimización)
                 if susp_node.parent_hash and orig_node.parent_hash:
                     if susp_node.parent_hash == orig_node.parent_hash:
                         i += 1
                         j += 1
                         continue
 
-                # Comparar valores hash
                 if susp_node.hash_value < orig_node.hash_value:
                     i += 1
                 elif susp_node.hash_value > orig_node.hash_value:
                     j += 1
                 else:
-                    # Hashes iguales - nodos similares
                     similar_nodes.append((susp_node, orig_node))
                     i += 1
                     j += 1
@@ -222,22 +227,21 @@ class ASTCCDetector:
 
     def detect_plagiarism(self, suspected_file: str, original_file: str) -> SimilarityResult:
         """
-        Detecta plagio entre dos archivos usando el algoritmo AST-CC
+        Detects plagiarism between two Java files using AST algorithm
+        :param suspected_file: Path to the suspected file
+        :param original_file: Path to the original file
+        :return: SimilarityResult containing similar nodes and similarity score
         """
-        # Leer archivos
         with open(suspected_file, 'r', encoding='utf-8') as f:
             suspected_code = f.read()
         with open(original_file, 'r', encoding='utf-8') as f:
             original_code = f.read()
 
-        # Extraer información del AST
         suspected_array = self.extract_ast_info(suspected_code, suspected_file)
         original_array = self.extract_ast_info(original_code, original_file)
 
-        # Comparar arrays
         similar_nodes = self.compare_hash_arrays(suspected_array, original_array)
 
-        # Calcular score de similitud
         total_suspected = sum(len(nodes) for nodes in suspected_array.values())
         total_original = sum(len(nodes) for nodes in original_array.values())
 
@@ -255,7 +259,11 @@ class ASTCCDetector:
 
     def process_dataset_astcc(self, base_path: str, csv_path: str, output_csv: str = 'astcc_results.csv'):
         """
-        Procesa el dataset usando el algoritmo AST-CC
+        Process dataset using AST algorithm
+        :param base_path: Base path where the Java files are located
+        :param csv_path: Path to the CSV file containing dataset information
+        :param output_csv: Path to save the results
+        :return: DataFrame with results
         """
         df = pd.read_csv(csv_path)
         df = df[df['source_dataset'].isin(['ir_plag', 'conplag'])]
@@ -263,7 +271,7 @@ class ASTCCDetector:
         results = []
         total = len(df)
 
-        print(f"\n🚀 Procesando {total} pares con algoritmo AST-CC...")
+        print(f"\n Procesando {total} pares ")
 
         for idx, row in df.iterrows():
             if idx % 50 == 0 and idx > 0:
@@ -276,7 +284,6 @@ class ASTCCDetector:
             file1_base = os.path.splitext(file1)[0]
             file2_base = os.path.splitext(file2)[0]
 
-            # Construir paths
             if dataset == 'ir_plag':
                 folder = row['folder_name']
                 folder_path = os.path.join(base_path, folder)
@@ -302,7 +309,6 @@ class ASTCCDetector:
                 continue
 
             try:
-                # Detectar plagio con AST-CC
                 result = self.detect_plagiarism(path1, path2)
 
                 results.append({
@@ -319,13 +325,11 @@ class ASTCCDetector:
                 print(f"Error procesando {folder_path}: {e}")
                 continue
 
-        # Guardar resultados
         df_results = pd.DataFrame(results)
         df_results.to_csv(output_csv, index=False)
 
         print(f"\nProcesamiento completado: {len(results)}/{total} archivos")
 
-        # Estadísticas
         print("\nEstadísticas AST-CC:")
         print("-" * 50)
 
@@ -333,12 +337,11 @@ class ASTCCDetector:
             stats = df_results.groupby(['dataset', 'es_plagio'])['astcc_score'].agg(['mean', 'std', 'count'])
             print(stats.round(3))
 
-            print(f"\n📈 Resumen:")
+            print(f"\nResumen:")
             print(f"  • Score promedio (plagio=1): {df_results[df_results['es_plagio']==1]['astcc_score'].mean():.3f}")
             print(f"  • Score promedio (plagio=0): {df_results[df_results['es_plagio']==0]['astcc_score'].mean():.3f}")
 
-            # Análisis con umbral
-            threshold = 0.55  # Umbral típico para AST-CC
+            threshold = 0.6
             tp = ((df_results['astcc_score'] >= threshold) & (df_results['es_plagio'] == 1)).sum()
             tn = ((df_results['astcc_score'] < threshold) & (df_results['es_plagio'] == 0)).sum()
             fp = ((df_results['astcc_score'] >= threshold) & (df_results['es_plagio'] == 0)).sum()
@@ -348,19 +351,21 @@ class ASTCCDetector:
             recall = tp / (tp + fn) if (tp + fn) > 0 else 0
             f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
 
-            print(f"\n🎯 Métricas con umbral={threshold}:")
+            print(f"\n Métricas con umbral={threshold}:")
             print(f"  • Precision: {precision:.3f}")
             print(f"  • Recall: {recall:.3f}")
             print(f"  • F1-Score: {f1:.3f}")
 
-        print(f"\n💾 Resultados guardados en: {output_csv}")
+        print(f"\n Resultados guardados en: {output_csv}")
 
         return df_results
 
 class TFIDFPlagiarismDetector:
-    """Detector that uses TF-IDF to identify code plagiarism"""
+    """
+    Detector that uses TF-IDF to identify code plagiarism
+    """
 
-    def __init__(self, threshold=0.55):
+    def __init__(self, threshold=0.45):
         self.threshold = threshold
         self.vectorizer = TfidfVectorizer(
             analyzer='word',
@@ -370,7 +375,9 @@ class TFIDFPlagiarismDetector:
         )
 
     def read_file(self, filepath):
-        """Read a Java file"""
+        """
+        Read a Java file
+        """
         try:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 return f.read()
@@ -379,33 +386,30 @@ class TFIDFPlagiarismDetector:
             return ""
 
     def preprocess_code(self, code):
-        """Clean and normalize Java code for better comparison"""
-        # Remove comments
+        """
+        Clean and normalize Java code for better comparison
+        """
         code = re.sub(r'//.*?\n', '\n', code)
         code = re.sub(r'/\*.*?\*/', '', code, flags=re.DOTALL)
 
-        # Remove extra whitespace
         code = re.sub(r'\s+', ' ', code).strip()
 
-        # Normalize variable names
         try:
-            # Use javalang to tokenize the code
             tokens = list(javalang.tokenizer.tokenize(code))
             return ' '.join(token.value for token in tokens)
         except:
-            # If tokenization fails, return cleaned code
             return code
 
     def calculate_similarity(self, text1, text2):
-        """Calculate TF-IDF similarity between two text samples"""
+        """
+        Calculate TF-IDF similarity between two text samples
+        """
         if not text1 or not text2:
             return 0.0
 
         try:
-            # Transform texts to TF-IDF vectors
             tfidf_matrix = self.vectorizer.fit_transform([text1, text2])
 
-            # Calculate cosine similarity
             similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
             return similarity
         except Exception as e:
@@ -413,19 +417,19 @@ class TFIDFPlagiarismDetector:
             return 0.0
 
     def detect_plagiarism(self, file1_path, file2_path):
-        """Detect if two files are plagiarized"""
-        # Read files
+        """
+        Detect if two files are plagiarized
+        :param file1_path: Path to the first Java file
+        :param file2_path: Path to the second Java file
+        """
         code1 = self.read_file(file1_path)
         code2 = self.read_file(file2_path)
 
-        # Preprocess code
         processed1 = self.preprocess_code(code1)
         processed2 = self.preprocess_code(code2)
 
-        # Calculate similarity
         similarity = self.calculate_similarity(processed1, processed2)
 
-        # Determine if plagiarized
         is_plagiarism = similarity >= self.threshold
 
         return {
