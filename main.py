@@ -24,7 +24,7 @@ def plot_confusion_matrix(y_true, y_pred, title, filename):
     plt.tight_layout()
     plt.savefig(filename)
     plt.close()
-    print(f"Matriz de confusión guardada en: {filename}")
+    print(f"Matrix confusion saved at: {filename}")
 
 def compare_plagiarism_detectors(base_path="data/splits/train/",
                                  csv_path="data/splits/train.csv",
@@ -191,7 +191,6 @@ def compare_plagiarism_detectors(base_path="data/splits/train/",
     return results_df
 
 if __name__ == "__main__":
-    # Create directories if they don't exist
     os.makedirs("images", exist_ok=True)
     os.makedirs("csv", exist_ok=True)
     compare_plagiarism_detectors()

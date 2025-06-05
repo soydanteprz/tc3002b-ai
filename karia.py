@@ -1,30 +1,24 @@
-#!/usr/bin/env python
-"""
-Plagiarism detection using Machine Learning
-TF-IDF (n-gramas) and Logistic Regression
-"""
-
-import os
-import pandas as pd
 import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, roc_auc_score, roc_curve
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
-from typing import Dict, Tuple, List
 import warnings
 warnings.filterwarnings('ignore')
 from astcc import *
 
 
-
+"""
+Plagiarism detection using Machine Learning
+TF-IDF (n-gramas) and Logistic Regression
+"""
 
 class MLPlagiarismClassifier:
     """
     Plagiarism detection classifier using Machine Learning
+
     """
 
     def __init__(self, ngram_range=(1, 2), max_features=5000):
@@ -37,14 +31,11 @@ class MLPlagiarismClassifier:
         self.ngram_range = ngram_range
         self.max_features = max_features
 
-        # Use TFIDFPlagiarismDetector instead of direct TfidfVectorizer
         self.tfidf_detector = TFIDFPlagiarismDetector()
 
-        # Configure the vectorizer inside the detector
         self.tfidf_detector.vectorizer.ngram_range = ngram_range
         self.tfidf_detector.vectorizer.max_features = max_features
 
-        # Keep reference to the vectorizer for convenience
         self.vectorizer = self.tfidf_detector.vectorizer
 
         self.model = LogisticRegression(max_iter=1000, random_state=42)
@@ -67,7 +58,7 @@ class MLPlagiarismClassifier:
         labels = []
         valid_indices = []
 
-        print(f"\nCargando datos de {split}...")
+        print(f"\nLoading data from {split}")
 
         for idx, row in df.iterrows():
             dataset = row.get('source_dataset', 'unknown')
@@ -121,10 +112,10 @@ class MLPlagiarismClassifier:
                     valid_indices.append(idx)
 
                 except Exception as e:
-                    print(f"Error leyendo archivos: {e}")
+                    print(f"Error reading files {path1} and {path2}: {e}")
                     continue
 
-        print(f"Cargados {len(texts)} pares de archivos")
+        print(f'{len(texts)} loaded file pairs from {split} split')
         print(f"Plagios: {sum(labels)} ({sum(labels)/len(labels)*100:.1f}%)")
         print(f"No plagios: {len(labels) - sum(labels)} ({(len(labels) - sum(labels))/len(labels)*100:.1f}%)")
 
@@ -145,17 +136,15 @@ class MLPlagiarismClassifier:
         :param optimize_hyperparameters: Whether to optimize hyperparameters using grid search
         :return: None
         """
-        print("\n Entrenando el modelo")
+        print("\nTraining the model...")
 
         # Vectorize the training data
-        print("Vectorizando con TF-IDF...")
+        print("Vectorizing training data with TF-IDF")
         X_train_tfidf = self.vectorizer.fit_transform(X_train)
-        print(f"Dimensiones: {X_train_tfidf.shape}")
-        print(f"Características extraídas: {X_train_tfidf.shape[1]}")
+        print(f"Dimensions de X_train: {X_train_tfidf.shape}")
+        print(f"Number of features: {X_train_tfidf.shape[1]}")
 
         if optimize_hyperparameters and X_val is not None:
-            print("Optimizando hiperparámetros")
-
             # Grid search for hyperparameter tuning
             param_grid = {
                 'C': [0.1, 1.0, 10.0],
@@ -175,20 +164,20 @@ class MLPlagiarismClassifier:
             grid_search.fit(X_train_tfidf, y_train)
             self.model = grid_search.best_estimator_
 
-            print(f"Mejores parámetros: {grid_search.best_params_}")
-            print(f"Mejor score CV: {grid_search.best_score_:.3f}")
+            print(f"Best parameters: {grid_search.best_params_}")
+            print(f"Best score: {grid_search.best_score_:.3f}")
 
         else:
             self.model.fit(X_train_tfidf, y_train)
 
         self.is_trained = True
-        print("Modelo entrenado")
+        print("Model trained successfully")
 
         if X_val is not None and y_val is not None:
             X_val_tfidf = self.vectorizer.transform(X_val)
             y_val_pred = self.model.predict(X_val_tfidf)
             val_accuracy = accuracy_score(y_val, y_val_pred)
-            print(f"\nAccuracy en validación: {val_accuracy:.3f}")
+            print(f"\nValidación Accuracy: {val_accuracy:.3f}")
 
     def predict(self, texts: List[str]) -> np.ndarray:
         """
@@ -197,7 +186,7 @@ class MLPlagiarismClassifier:
         :return: Array of predictions
         """
         if not self.is_trained:
-            raise ValueError("El modelo no ha sido entrenado")
+            raise ValueError("Model has not been trained")
 
         X_tfidf = self.vectorizer.transform(texts)
         return self.model.predict(X_tfidf)
@@ -209,7 +198,7 @@ class MLPlagiarismClassifier:
         :return: Array of probabilities
         """
         if not self.is_trained:
-            raise ValueError("El modelo no ha sido entrenado")
+            raise ValueError("Model has not been trained")
 
         X_tfidf = self.vectorizer.transform(texts)
         return self.model.predict_proba(X_tfidf)
@@ -223,7 +212,7 @@ class MLPlagiarismClassifier:
         :param dataset_name: Name of the dataset for reporting
         :return: Dictionary with evaluation metrics
         """
-        print(f"\nEvaluando en {dataset_name}...")
+        print(f"\nEvaluating on {dataset_name} dataset")
 
         X_test_tfidf = self.vectorizer.transform(X_test)
         y_pred = self.model.predict(X_test_tfidf)
@@ -258,7 +247,7 @@ class MLPlagiarismClassifier:
 
         output_file = f"csv/ml_results_{dataset_name.lower()}.csv"
         results.to_csv(output_file, index=False)
-        print(f"\n Resultados guardados en: {output_file}")
+        print(f"\n Results saved to: {output_file}")
 
         return {
             'accuracy': accuracy,
@@ -288,10 +277,16 @@ class MLPlagiarismClassifier:
         filename = f"images/ml_confusion_matrix_{dataset_name.lower()}.png"
         plt.savefig(filename, dpi=300, bbox_inches='tight')
         plt.close()
-        print(f"Matriz de confusión guardada en: {filename}")
+        print(f"Matrix confusion saved at: {filename}")
 
     def _plot_roc_curve(self, y_true, y_proba, dataset_name):
-        """Genera y guarda curva ROC"""
+        """
+        Generates and saves the ROC curve plot
+        :param y_true: True labels
+        :param y_proba: Predicted probabilities
+        :param dataset_name: Name of the dataset for the plot title
+        :return: None
+        """
         fpr, tpr, _ = roc_curve(y_true, y_proba)
         auc = roc_auc_score(y_true, y_proba)
 
@@ -397,8 +392,6 @@ def main():
     """
     Main function to run the plagiarism detection system
     """
-    print("SISTEMA DE CLASIFICACION DE PLAGIO")
-    print("=" * 70)
     # Create directories if they don't exist
     os.makedirs("images", exist_ok=True)
     os.makedirs("csv", exist_ok=True)
@@ -406,34 +399,35 @@ def main():
     BASE_PATH = "data/splits"
 
     classifier = MLPlagiarismClassifier(
-        ngram_range=(1, 3),  # Use unigrams, bigrams, and trigrams
+        ngram_range=(1, 3),
         max_features=5000
     )
 
-    print("\nCARGANDO DATASETS")
+    print("\nLOADING DATASETS")
     X_train, y_train, df_train = classifier.load_dataset(BASE_PATH, 'train')
     X_val, y_val, df_val = classifier.load_dataset(BASE_PATH, 'validation')
     X_test, y_test, df_test = classifier.load_dataset(BASE_PATH, 'test')
 
-    print("\nENTRENAMIENTO")
+    print("\nTRAINING THE MODEL")
     classifier.train(
         X_train, y_train,
         X_val, y_val,
-        optimize_hyperparameters=True  # Optimize hyperparameters
+        # Optimize hyperparameters
+        optimize_hyperparameters=True
     )
 
-    print("\nEVALUACIÓN EN VALIDACIÓN")
+    print("Evaluating on validation set")
     val_results = classifier.evaluate(X_val, y_val, "Validation")
 
-    print("\nEVALUACIÓN EN TEST")
+    print("Evaluating on test set")
     test_results = classifier.evaluate(X_test, y_test, "Test")
 
-    print("\nANÁLISIS DE CARACTERÍSTICAS")
+    print("\nFEATURE ANALYSIS")
     classifier.analyze_feature_importance(top_n=20)
 
     classifier.save_model("models/ml_plagiarism_model.pkl")
 
-    print("\nRESUMEN DE RESULTADOS")
+    print("\nSUMMARY OF RESULTS")
     print("=" * 70)
     print(f"Validation Accuracy: {val_results['accuracy']:.3f}")
     print(f"Test Accuracy: {test_results['accuracy']:.3f}")
@@ -448,9 +442,7 @@ def main():
     })
 
     summary.to_csv('csv/ml_summary_results.csv', index=False)
-    print("\nResumen guardado en: ml_summary_results.csv")
-
-    print("\nProceso completado")
+    print("\nSummary saved to: csv/ml_summary_results.csv")
 
 
 if __name__ == "__main__":

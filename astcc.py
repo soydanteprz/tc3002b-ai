@@ -1,7 +1,3 @@
-"""
-Implementation of the algorithm based on the paper "An AST-Based Code Plagiarism Detection Algorithm"
-"""
-
 import os
 import javalang
 from collections import defaultdict
@@ -12,11 +8,18 @@ from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 import re
 
+"""
+Implementation of the algorithm based on the paper "An AST-Based Code Plagiarism Detection Algorithm"
+"""
+
+
 
 
 @dataclass
 class NodeInfo:
-    """AST node information"""
+    """
+    AST node information
+    """
     hash_value: int
     node_type: str
     position: int
@@ -28,7 +31,9 @@ class NodeInfo:
 
 @dataclass
 class SimilarityResult:
-    """Similarity result between two files"""
+    """
+    Similarity result between two files
+    """
     file1: str
     file2: str
     similar_nodes: List[Tuple[NodeInfo, NodeInfo]]
@@ -38,6 +43,7 @@ class SimilarityResult:
 class ASTCCDetector:
     """
     Implementation of the AST algorithm
+    based on the paper "An AST-Based Code Plagiarism Detection Algorithm"
     """
 
     def __init__(self):
@@ -170,7 +176,7 @@ class ASTCCDetector:
                 position += 1
 
         except Exception as e:
-            print(f"Error procesando {filename}: {e}")
+            print(f"Error processing {filename}: {e}")
 
         return hash_list_array
 
@@ -266,11 +272,11 @@ class ASTCCDetector:
         results = []
         total = len(df)
 
-        print(f"\n Procesando {total} pares ")
+        print(f"Processing {total} pairs of files")
 
         for idx, row in df.iterrows():
             if idx % 50 == 0 and idx > 0:
-                print(f"  ▶ {idx}/{total} completados ({idx/total*100:.1f}%)")
+                print(f"{idx}/ {total} completed ({idx/total*100:.1f}%)")
 
             dataset = row['source_dataset']
             plagio = row['label']
@@ -317,24 +323,25 @@ class ASTCCDetector:
                 })
 
             except Exception as e:
-                print(f"Error procesando {folder_path}: {e}")
+                print(f"Error reading files {path1} and {path2} in folder {folder_path}: {e}")
                 continue
 
         df_results = pd.DataFrame(results)
         df_results.to_csv(output_csv, index=False)
 
-        print(f"\nProcesamiento completado: {len(results)}/{total} archivos")
+        print(f"Processing completed: {len(results)}/{total} files")
 
-        print("\nEstadísticas AST-CC:")
+        print("AST-CC stats:")
         print("-" * 50)
 
         if len(df_results) > 0:
             stats = df_results.groupby(['dataset', 'es_plagio'])['astcc_score'].agg(['mean', 'std', 'count'])
             print(stats.round(3))
 
-            print(f"\nResumen:")
-            print(f"  • Score promedio (plagio=1): {df_results[df_results['es_plagio']==1]['astcc_score'].mean():.3f}")
-            print(f"  • Score promedio (plagio=0): {df_results[df_results['es_plagio']==0]['astcc_score'].mean():.3f}")
+
+            print(f"\nSummary:")
+            print(f"  • Average score (plagiarism=1): {df_results[df_results['es_plagio']==1]['astcc_score'].mean():.3f}")
+            print(f"  • Average score (plagiarism=0): {df_results[df_results['es_plagio']==0]['astcc_score'].mean():.3f}")
 
             threshold = 0.6
             tp = ((df_results['astcc_score'] >= threshold) & (df_results['es_plagio'] == 1)).sum()
@@ -346,12 +353,13 @@ class ASTCCDetector:
             recall = tp / (tp + fn) if (tp + fn) > 0 else 0
             f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
 
-            print(f"\n Métricas con umbral={threshold}:")
+
+            print(f"\n Metrics with threshold={threshold}:")
             print(f"  • Precision: {precision:.3f}")
             print(f"  • Recall: {recall:.3f}")
             print(f"  • F1-Score: {f1:.3f}")
 
-        print(f"\n Resultados guardados en: {output_csv}")
+        print(f"\n Results saved in: {output_csv}")
 
         return df_results
 
