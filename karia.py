@@ -406,7 +406,7 @@ def main():
     BASE_PATH = "data/splits"
 
     classifier = MLPlagiarismClassifier(
-        ngram_range=(1, 2),
+        ngram_range=(1, 3),  # Use unigrams, bigrams, and trigrams
         max_features=5000
     )
 
